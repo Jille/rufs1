@@ -72,7 +72,7 @@ func (c *RUFSMasterClient) Call(method string, q, r interface{}) error {
 		c.Client = rc.Client
 		c.Conn = rc.Conn
 		cb := c.reconnCb
-		c.reconnCb = nil
+		c.reconnCb = func(c *RUFSMasterClient) error { return nil }
 		defer func() {
 			c.reconnCb = cb
 		}()
