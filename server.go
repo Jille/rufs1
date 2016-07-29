@@ -232,6 +232,7 @@ func (s *Server) fsScanner(done <-chan void) {
 	if err != nil {
 		log.Printf("Couldn't load hashcache.dat: %v", err)
 	}
+	fastPass := (cacheSeed != nil)
 	for {
 		walkMtx.Lock()
 		missing := map[string]bool{}
@@ -267,6 +268,9 @@ func (s *Server) fsScanner(done <-chan void) {
 			if f, ok := cacheSeed[rel]; ok && f.Size == info.Size() && f.Mtime == info.ModTime() {
 				hash = f.Hash
 			} else {
+				if fastPass {
+					return nil
+				}
 				hash, err = HashFile(path)
 				if err != nil {
 					return nil
@@ -296,6 +300,10 @@ func (s *Server) fsScanner(done <-chan void) {
 			log.Printf("Couldn't write hashcache.dat: %v", err)
 		}
 		fileCacheMtx.Unlock()
+		if fastPass {
+			fastPass = false
+			continue
+		}
 		select {
 		case <-done:
 			return
