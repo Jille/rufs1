@@ -3,10 +3,8 @@
 package main
 
 import (
-	"errors"
 	"flag"
 	"fmt"
-	"io"
 	"log"
 	"os"
 	osUser "os/user"
@@ -31,8 +29,7 @@ type FuseMnt struct {
 	allowedUsers map[uint32]bool
 	server       *Server
 	master       *RUFSMasterClient
-	peers        map[string]*RUFSClient
-	peersMtx     sync.Mutex
+	fetcher      *Fetcher
 	cache        map[string]*GetDirReply
 	cacheExpiry  map[string]int
 	cacheMtx     sync.Mutex
@@ -64,9 +61,9 @@ func newFuseMnt(mountpoint string, server *Server) (*FuseMnt, error) {
 		server:       server,
 		mountpoint:   mountpoint,
 		allowedUsers: allowedUsers,
-		peers:        map[string]*RUFSClient{},
 		cache:        map[string]*GetDirReply{},
 		cacheExpiry:  map[string]int{},
+		fetcher:      NewFetcher(server),
 	}, nil
 }
 
@@ -320,55 +317,20 @@ func (f *file) Open(ctx context.Context, request *fuse.OpenRequest, response *fu
 		}
 		return nil, err
 	}
-	found := false
-	for _, p := range ret.Owners {
-		if _, ok := f.fs.peers[p]; ok {
-			found = true
-		} else {
-			ex := strings.Split(p, "@")
-			tlsCfg := getTlsConfig(TlsConfigServerClient, f.fs.server.ca, f.fs.server.cert, ex[0])
-			client, err := NewRUFSClient(ex[1], tlsCfg)
-			if err == nil {
-				f.fs.peers[p] = client
-				found = true
-			}
-		}
+	pfh, err := f.fs.fetcher.NewHandle(fi.Hash, fi.Size, ret.Owners)
+	if err != nil {
+		return nil, err
 	}
-	if !found {
-		return nil, fuse.EIO
-	}
-	return &handle{f.node, fi.Hash, ret.Owners}, nil
+	return &handle{f.node, pfh}, nil
 }
 
 type handle struct {
 	node
-	hash  string
-	peers []string
+	pfh *pfHandle
 }
 
 func (h *handle) Read(ctx context.Context, request *fuse.ReadRequest, response *fuse.ReadResponse) (retErr error) {
-	retErr = errors.New("Couldn't find peer with file")
-	for _, p := range h.peers {
-		select {
-		case <-ctx.Done():
-			return fuse.EINTR
-		default:
-		}
-		client, ok := h.fs.peers[p]
-		if !ok {
-			continue
-		}
-		ret, err := client.Read(h.hash, request.Offset, request.Size)
-		if err != nil {
-			retErr = err
-			continue
-		}
-		response.Data = ret.Data
-		if ret.EOF {
-			return io.EOF
-		}
-		return nil
-	}
+	response.Data, retErr = h.pfh.Read(ctx, request.Offset, request.Size)
 	return retErr
 }
 
@@ -380,8 +342,7 @@ func (h *handle) Fsync(ctx context.Context, request *fuse.FsyncRequest) error {
 	return fuse.ENOSYS
 }
 
-/*
 func (h *handle) Release(ctx context.Context, request *fuse.ReleaseRequest) error {
-	return h.f.Close()
+	h.pfh.Close()
+	return nil
 }
-*/
