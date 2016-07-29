@@ -15,12 +15,6 @@ type RUFSMasterService struct {
 	peer   *Peer
 }
 
-type Directory struct {
-	dirs  map[string]*Directory
-	files map[string]FileInfo
-	refs  int
-}
-
 type FileInfo struct {
 	Size  int64
 	Hash  string
