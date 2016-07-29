@@ -24,6 +24,8 @@ var (
 
 	masterGenKeys = flag.Bool("master_gen_keys", false, "Generate keys for the master process")
 	getAuthToken  = flag.String("get_auth_token", "", "Create auth token for this user")
+
+	serverMods []func(s *Server) (module, error)
 )
 
 func getPath(path string) string {
@@ -42,6 +44,10 @@ func ensureDirExists(dir string) {
 	if err := os.MkdirAll(dir, 0700); err != nil {
 		panic(err)
 	}
+}
+
+func registerServerModule(f func(s *Server) (module, error)) {
+	serverMods = append(serverMods, f)
 }
 
 type module interface {
@@ -79,12 +85,14 @@ func main() {
 		}
 		mods = append(mods, m)
 
-		if *mountpoint != "" {
-			m, err := newFuseMnt(*mountpoint, m)
+		for _, f := range serverMods {
+			sm, err := f(m)
 			if err != nil {
 				log.Fatalln(err)
 			}
-			mods = append(mods, m)
+			if sm == nil {
+				continue
+			}
 		}
 	}
 

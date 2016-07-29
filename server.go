@@ -25,7 +25,6 @@ var (
 	port           = flag.Int("port", 1667, "Flag to run the server at")
 	extIp          = flag.String("external_ip", "", "Your external IP (if not detected automatically)")
 	share          = flag.String("share", "", "Share this folder")
-	mountpoint     = flag.String("mountpoint", "", "Where to mount everyone's stuff")
 	user           = flag.String("user", "quis", "Who are you?")
 	localCacheDir  = flag.String("local_cache_dir", "%rufs_var_storage%/cache/", "Where to store local cache")
 	localCacheSize = flag.String("local_cache_size", "20G", "How big the local cache can be")

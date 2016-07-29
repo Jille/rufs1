@@ -1,3 +1,5 @@
+// +build !windows,!nofuse
+
 package main
 
 import (
@@ -21,6 +23,7 @@ import (
 
 var (
 	allowUsers = flag.String("allow_users", "", "Which local users to allow access to the fuse mount, comma separated")
+	mountpoint = flag.String("mountpoint", "", "Where to mount everyone's stuff")
 )
 
 type FuseMnt struct {
@@ -33,6 +36,15 @@ type FuseMnt struct {
 	cache        map[string]*GetDirReply
 	cacheExpiry  map[string]int
 	cacheMtx     sync.Mutex
+}
+
+func init() {
+	registerServerModule(func(s *Server) (module, error) {
+		if *mountpoint != "" {
+			return newFuseMnt(*mountpoint, s)
+		}
+		return nil, nil
+	})
 }
 
 func newFuseMnt(mountpoint string, server *Server) (*FuseMnt, error) {
