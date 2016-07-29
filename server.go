@@ -112,7 +112,7 @@ func (s *Server) Setup() error {
 	go srv.Accept(s.sock)
 
 	var addr string
-	if *mountpoint != "" || *extIp != "" {
+	if *share != "" || *extIp != "" {
 		addr = fmt.Sprintf("%s:%d", *extIp, *port)
 	}
 	signin := func(c *RUFSMasterClient) error {
