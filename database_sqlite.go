@@ -218,9 +218,17 @@ func (d *Database) updateDirCache() error {
 			return err
 		}
 		ex := strings.Split(dir, "/")
-		dn := strings.Join(ex[:len(ex)-1], "/")
-		f := ex[len(ex)-1]
-		d.dirCache[dn] = append(d.dirCache[dn], f)
+	outer:
+		for s := len(ex) - 1; s >= 0; s-- {
+			dn := strings.Join(ex[:s], "/")
+			f := ex[s]
+			for _, d := range d.dirCache[dn] {
+				if d == f {
+					break outer
+				}
+			}
+			d.dirCache[dn] = append(d.dirCache[dn], f)
+		}
 	}
 	fmt.Printf("dirCache: %+v\n", d.dirCache)
 	d.dirCacheCond.Broadcast()
