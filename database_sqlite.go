@@ -59,6 +59,15 @@ CREATE INDEX idx_hash ON fs (hash);
 	`); err != nil {
 		return nil, err
 	}
+	if _, err := ret.db.Exec(`PRAGMA synchronous = OFF`); err != nil {
+		return nil, err
+	}
+	if _, err := ret.db.Exec(`PRAGMA journal_mode = OFF`); err != nil {
+		return nil, err
+	}
+	if _, err := ret.db.Exec(`PRAGMA locking_mode=EXCLUSIVE`); err != nil {
+		return nil, err
+	}
 
 	ret.stmtAddFile, err = ret.db.Prepare(`INSERT INTO fs (directory, file, size, mtime, hash, peer) VALUES (?, ?, ?, ?, ?, ?)`)
 	if err != nil {
