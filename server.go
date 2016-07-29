@@ -291,9 +291,11 @@ func (s *Server) fsScanner(done <-chan void) {
 			}
 		}
 		walkMtx.Unlock()
+		fileCacheMtx.Lock()
 		if err := s.writeHashCache(fileCache); err != nil {
 			log.Printf("Couldn't write hashcache.dat: %v", err)
 		}
+		fileCacheMtx.Unlock()
 		select {
 		case <-done:
 			return
