@@ -93,6 +93,7 @@ func main() {
 			if sm == nil {
 				continue
 			}
+			mods = append(mods, sm)
 		}
 	}
 
