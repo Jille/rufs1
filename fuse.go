@@ -152,6 +152,7 @@ func (fs *FuseMnt) purgeCacheEntry(dn string) {
 }
 
 func (fs *FuseMnt) GetDirCached(dn string) (*GetDirReply, error) {
+	dn = strings.Trim(dn, "/")
 	fs.cacheMtx.Lock()
 	if gdr, ok := fs.cache[dn]; ok {
 		fs.cacheMtx.Unlock()
