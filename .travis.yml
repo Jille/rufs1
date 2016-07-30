@@ -6,7 +6,9 @@ env:
 
 install:
 - go get ./...
+- go get github.com/mattn/go-sqlite3
 
 script:
 - "[ `gofmt -l *.go | wc -l` = 0 ]"
 - go build
+- go build -tags sqlite
