@@ -313,15 +313,17 @@ func (s *Server) fsScanner(done <-chan void) {
 }
 
 func (RUFSService) Ping(q PingRequest, r *PingReply) (retErr error) {
-	defer LogRPC("Ping", q, r, &retErr)
+	defer LogRPC("Ping", q, r, &retErr)()
 	return nil
 }
 
 func (RUFSService) Read(q ReadRequest, r *ReadReply) (retErr error) {
+	var rc ReadReply
+	l := LogRPC("Read", q, &rc, &retErr)
 	defer func() {
-		rc := *r
+		rc = *r
 		rc.Data = nil
-		LogRPC("Read", q, rc, &retErr)
+		l()
 	}()
 	fileCacheMtx.Lock()
 	paths, ok := hashToPath[q.Hash]
