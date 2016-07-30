@@ -8,5 +8,5 @@ install:
 - go get ./...
 
 script:
-- [ `gofmt -l *.go | wc -l` = 0 ]
+- "[ `gofmt -l *.go | wc -l` = 0 ]"
 - go build
