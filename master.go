@@ -16,7 +16,6 @@ type Peer struct {
 	user    string
 	address string
 	ident   string
-	client  *RUFSClient
 	conn    *tls.Conn
 }
 
@@ -98,7 +97,7 @@ func (m *Master) Run(done <-chan void) error {
 }
 
 func (s RUFSMasterService) Register(q RegisterRequest, r *RegisterReply) (retErr error) {
-	defer LogRPC("Register", q, r, &retErr)
+	defer LogRPC("Register", q, r, &retErr)()
 	token := createAuthToken(s.master.vault, q.User)
 	if token != q.Token {
 		return errors.New("Token is invalid")
@@ -114,7 +113,7 @@ func (s RUFSMasterService) Register(q RegisterRequest, r *RegisterReply) (retErr
 }
 
 func (s RUFSMasterService) Signin(q SigninRequest, r *SigninReply) (retErr error) {
-	defer LogRPC("Signin", q, r, &retErr)
+	defer LogRPC("Signin", q, r, &retErr)()
 	if q.ProtocolVersion != 1 {
 		return fmt.Errorf("Protocol %d not supported", q.ProtocolVersion)
 	}
@@ -145,7 +144,6 @@ func (s RUFSMasterService) Signin(q SigninRequest, r *SigninReply) (retErr error
 			return fmt.Errorf("Failed to ping to %q: %v", addr, err)
 		}
 		s.peer.address = addr
-		s.peer.client = client
 		s.peer.ident = fmt.Sprintf("%s@%s", q.User, addr)
 	}
 	s.peer.user = q.User
@@ -153,7 +151,7 @@ func (s RUFSMasterService) Signin(q SigninRequest, r *SigninReply) (retErr error
 }
 
 func (s RUFSMasterService) SetFile(q SetFileRequest, r *SetFileReply) (retErr error) {
-	defer LogRPC("SetFile", q, r, &retErr)
+	defer LogRPC("SetFile", q, r, &retErr)()
 	if s.peer.address == "" {
 		return errors.New("SetFile denied before calling Signin with Address")
 	}
@@ -167,7 +165,7 @@ func (s RUFSMasterService) SetFile(q SetFileRequest, r *SetFileReply) (retErr er
 }
 
 func (s RUFSMasterService) GetDir(q GetDirRequest, r *GetDirReply) (retErr error) {
-	defer LogRPC("GetDir", q, r, &retErr)
+	defer LogRPC("GetDir", q, r, &retErr)()
 	if s.peer.user == "" {
 		return errors.New("GetDir denied before calling Signin")
 	}
@@ -182,7 +180,7 @@ func (s RUFSMasterService) GetDir(q GetDirRequest, r *GetDirReply) (retErr error
 }
 
 func (s RUFSMasterService) GetOwners(q GetOwnersRequest, r *GetOwnersReply) (retErr error) {
-	defer LogRPC("GetOwners", q, r, &retErr)
+	defer LogRPC("GetOwners", q, r, &retErr)()
 	if s.peer.user == "" {
 		return errors.New("GetOwners denied before calling Signin")
 	}
@@ -191,10 +189,11 @@ func (s RUFSMasterService) GetOwners(q GetOwnersRequest, r *GetOwnersReply) (ret
 }
 
 func (p *Peer) Disconnected(m *Master) {
+	var err error
+	defer LogRPC("[disconnect]", nil, nil, &err)()
 	if p.address == "" {
 		return
 	}
-	p.client.Close()
 
 	m.db.PeerDisconnected(p.ident)
 }

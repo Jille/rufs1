@@ -232,6 +232,23 @@ func (s *Server) fsScanner(done <-chan void) {
 	if err != nil {
 		log.Printf("Couldn't load hashcache.dat: %v", err)
 	}
+	fastPass := (cacheSeed != nil)
+	firstPassDone := false
+	go func() {
+		for range time.Tick(time.Minute) {
+			if firstPassDone {
+				return
+			}
+			if fastPass {
+				continue
+			}
+			fileCacheMtx.Lock()
+			if err := s.writeHashCache(fileCache); err != nil {
+				log.Printf("Couldn't write hashcache.dat: %v", err)
+			}
+			fileCacheMtx.Unlock()
+		}
+	}()
 	for {
 		walkMtx.Lock()
 		missing := map[string]bool{}
@@ -267,6 +284,9 @@ func (s *Server) fsScanner(done <-chan void) {
 			if f, ok := cacheSeed[rel]; ok && f.Size == info.Size() && f.Mtime == info.ModTime() {
 				hash = f.Hash
 			} else {
+				if fastPass {
+					return nil
+				}
 				hash, err = HashFile(path)
 				if err != nil {
 					return nil
@@ -291,11 +311,16 @@ func (s *Server) fsScanner(done <-chan void) {
 			}
 		}
 		walkMtx.Unlock()
+		if fastPass {
+			fastPass = false
+			continue
+		}
 		fileCacheMtx.Lock()
 		if err := s.writeHashCache(fileCache); err != nil {
 			log.Printf("Couldn't write hashcache.dat: %v", err)
 		}
 		fileCacheMtx.Unlock()
+		firstPassDone = true
 		select {
 		case <-done:
 			return
@@ -305,15 +330,17 @@ func (s *Server) fsScanner(done <-chan void) {
 }
 
 func (RUFSService) Ping(q PingRequest, r *PingReply) (retErr error) {
-	defer LogRPC("Ping", q, r, &retErr)
+	defer LogRPC("Ping", q, r, &retErr)()
 	return nil
 }
 
 func (RUFSService) Read(q ReadRequest, r *ReadReply) (retErr error) {
+	var rc ReadReply
+	l := LogRPC("Read", q, &rc, &retErr)
 	defer func() {
-		rc := *r
+		rc = *r
 		rc.Data = nil
-		LogRPC("Read", q, rc, &retErr)
+		l()
 	}()
 	fileCacheMtx.Lock()
 	paths, ok := hashToPath[q.Hash]

@@ -61,7 +61,7 @@ func (c *RUFSMasterClient) Call(method string, q, r interface{}) error {
 	if err == rpc.ErrShutdown {
 		rc, err := NewRUFSMasterClient(c.addr, c.tlsCfg)
 		if err != nil {
-			return fmt.Errorf("reconnecting to %s failed: %v", err)
+			return fmt.Errorf("reconnecting to master failed: %v", err)
 		}
 		c.Client = rc.Client
 		c.Conn = rc.Conn
@@ -71,7 +71,7 @@ func (c *RUFSMasterClient) Call(method string, q, r interface{}) error {
 			c.reconnCb = cb
 		}()
 		if err := cb(c); err != nil {
-			return fmt.Errorf("reconnecting to %s failed: %v", err)
+			return fmt.Errorf("reconnecting to master failed: %v", err)
 		}
 		return c.Client.Call(method, q, r)
 	}

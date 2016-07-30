@@ -1,0 +1,12 @@
+language: go
+
+env:
+- GIMME_OS=linux GIMME_ARCH=386
+- GIMME_OS=linux GIMME_ARCH=amd64
+
+install:
+- go get ./...
+
+script:
+- "[ `gofmt -l *.go | wc -l` = 0 ]"
+- go build
