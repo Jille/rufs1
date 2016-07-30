@@ -1,10 +1,11 @@
-// +build !windows,!nofuse
+// +build !windows,!nofuse !noftp
 
 package main
 
 import (
 	"errors"
 	"flag"
+	"io"
 	"log"
 	"strings"
 	"sync"
@@ -243,13 +244,49 @@ func (h *pfHandle) Read(ctx context.Context, offset int64, size int) ([]byte, er
 		log.Printf("Block offset %d", bo)
 		bufs[0] = bufs[0][bo:]
 	}
-	ret := make([]byte, 0, size)
-	for _, b := range bufs {
-		ret = append(ret, b...)
+	var ret []byte
+	if len(bufs) == 1 {
+		ret = bufs[0]
+	} else {
+		ret = make([]byte, 0, size)
+		for _, b := range bufs {
+			ret = append(ret, b...)
+		}
 	}
 	if len(ret) > size {
 		log.Printf("Returning %d bytes instead of %d (%d too much)", len(ret), size, len(ret)-size)
 		// ret = ret[:size]
 	}
 	return ret, nil
+}
+
+type pfStream struct {
+	h      *pfHandle
+	offset int64
+	ctx    context.Context
+	cancel func()
+}
+
+func (h *pfHandle) Stream(offset int64) io.ReadCloser {
+	ctx, cancel := context.WithCancel(context.Background())
+	return &pfStream{h, offset, ctx, cancel}
+}
+
+func (s *pfStream) Read(p []byte) (n int, err error) {
+	if s.offset >= s.h.size {
+		return 0, io.EOF
+	}
+	data, err := s.h.Read(s.ctx, s.offset, len(p))
+	if err != nil {
+		return 0, err
+	}
+	copy(p, data)
+	s.offset += int64(len(data))
+	return len(data), nil
+}
+
+func (s *pfStream) Close() error {
+	s.cancel()
+	s.h.Close()
+	return nil
 }

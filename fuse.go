@@ -11,7 +11,6 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
-	"sync"
 	"time"
 
 	"bazil.org/fuse"
@@ -25,14 +24,9 @@ var (
 )
 
 type FuseMnt struct {
+	FrontendLib
 	mountpoint   string
 	allowedUsers map[uint32]bool
-	server       *Server
-	master       *RUFSMasterClient
-	fetcher      *Fetcher
-	cache        map[string]*GetDirReply
-	cacheExpiry  map[string]int
-	cacheMtx     sync.Mutex
 }
 
 func init() {
@@ -62,12 +56,14 @@ func newFuseMnt(mountpoint string, server *Server) (*FuseMnt, error) {
 		return nil, err
 	}
 	return &FuseMnt{
-		server:       server,
 		mountpoint:   mountpoint,
 		allowedUsers: allowedUsers,
-		cache:        map[string]*GetDirReply{},
-		cacheExpiry:  map[string]int{},
-		fetcher:      f,
+		FrontendLib: FrontendLib{
+			server:      server,
+			cache:       map[string]*GetDirReply{},
+			cacheExpiry: map[string]int{},
+			fetcher:     f,
+		},
 	}, nil
 }
 
