@@ -16,7 +16,6 @@ import (
 type Peer struct {
 	user    string
 	address string
-	client  *RUFSClient
 	conn    *tls.Conn
 }
 
@@ -143,7 +142,6 @@ func (s RUFSMasterService) Signin(q SigninRequest, r *SigninReply) (retErr error
 			return fmt.Errorf("Failed to ping to %q: %v", addr, err)
 		}
 		s.peer.address = addr
-		s.peer.client = client
 	}
 	s.peer.user = q.User
 	return nil
@@ -263,7 +261,6 @@ func (p *Peer) Disconnected(m *Master) {
 	if p.address == "" {
 		return
 	}
-	p.client.Close()
 
 	m.mtx.Lock()
 	delete(m.fileTree.dirs, p.user)
