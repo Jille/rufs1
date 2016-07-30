@@ -5,7 +5,6 @@ package main
 import (
 	"database/sql"
 	"flag"
-	"fmt"
 	"os"
 	"strings"
 	"sync"
@@ -26,9 +25,9 @@ type Database struct {
 	stmtGetOwners  *sql.Stmt
 	stmtGetDir     *sql.Stmt
 	stmtGetAllDirs *sql.Stmt
+	dbLock         sync.RWMutex
 	dirCache       map[string][]string
-	dirCacheMtx    sync.RWMutex
-	dirCacheCond   *sync.Cond
+	dirCacheMtx    sync.Mutex
 }
 
 func newDatabase() (*Database, error) {
@@ -94,7 +93,6 @@ CREATE INDEX idx_hash ON fs (hash);
 		return nil, err
 	}
 	ret.dirCache = nil
-	ret.dirCacheCond = sync.NewCond(ret.dirCacheMtx.RLocker())
 
 	return ret, nil
 }
@@ -107,6 +105,8 @@ func (d *Database) Close() error {
 }
 
 func (d *Database) SetFile(fnEx []string, fi *FileInfo, owner string) error {
+	d.dbLock.Lock()
+	defer d.dbLock.Unlock()
 	tx, err := d.db.Begin()
 	if err != nil {
 		return err
@@ -132,12 +132,16 @@ func (d *Database) SetFile(fnEx []string, fi *FileInfo, owner string) error {
 }
 
 func (d *Database) PeerDisconnected(owner string) error {
+	d.dbLock.Lock()
+	defer d.dbLock.Unlock()
 	_, err := d.stmtDisconnect.Exec(owner)
 	d.invalidateDirCache()
 	return err
 }
 
 func (d *Database) GetOwners(hash string) ([]string, error) {
+	d.dbLock.RLock()
+	defer d.dbLock.RUnlock()
 	rows, err := d.stmtGetOwners.Query(hash)
 	if err != nil {
 		return nil, err
@@ -159,43 +163,47 @@ func (d *Database) GetOwners(hash string) ([]string, error) {
 	return ret, nil
 }
 
-func (d *Database) GetDir(dir string) (map[string]FileInfo, []string, error) {
-	d.dirCacheMtx.RLock()
-	if d.dirCache == nil {
-		go d.updateDirCache()
-	}
-	d.dirCacheMtx.RUnlock()
-	rows, err := d.stmtGetDir.Query(dir)
-	if err != nil {
-		return nil, nil, err
-	}
-	defer rows.Close()
-	ret := map[string]FileInfo{}
-	for rows.Next() {
-		var file, hash string
-		var size, mtime int64
-		err = rows.Scan(&file, &size, &mtime, &hash)
+func (d *Database) GetDir(dir string) (files map[string]FileInfo, dirs []string, err error) {
+	d.dbLock.RLock()
+	defer d.dbLock.RUnlock()
+	ch := make(chan []string, 1)
+	go func() {
+		d.dirCacheMtx.Lock()
+		defer d.dirCacheMtx.Unlock()
+		for d.dirCache == nil {
+			d.updateDirCache()
+		}
+		ch <- d.dirCache[dir]
+	}()
+
+	files, err = func() (ret map[string]FileInfo, err error) {
+		rows, err := d.stmtGetDir.Query(dir)
 		if err != nil {
-			return nil, nil, err
+			return nil, err
 		}
-		ret[file] = FileInfo{
-			Size:  size,
-			Mtime: time.Unix(mtime, 0),
-			Hash:  hash,
+		defer rows.Close()
+		ret = map[string]FileInfo{}
+		for rows.Next() {
+			var file, hash string
+			var size, mtime int64
+			err = rows.Scan(&file, &size, &mtime, &hash)
+			if err != nil {
+				return nil, err
+			}
+			ret[file] = FileInfo{
+				Size:  size,
+				Mtime: time.Unix(mtime, 0),
+				Hash:  hash,
+			}
 		}
-	}
-	err = rows.Err()
-	if err != nil {
-		return nil, nil, err
-	}
-	d.dirCacheMtx.RLock()
-	for d.dirCache == nil {
-		go d.updateDirCache()
-		d.dirCacheCond.Wait()
-	}
-	dirs := d.dirCache[dir]
-	d.dirCacheMtx.RUnlock()
-	return ret, dirs, nil
+		if err := rows.Err(); err != nil {
+			return nil, err
+		}
+		return ret, nil
+	}()
+	dirs = <-ch
+
+	return files, dirs, nil
 }
 
 func (d *Database) invalidateDirCacheLocked() {
@@ -203,17 +211,12 @@ func (d *Database) invalidateDirCacheLocked() {
 }
 
 func (d *Database) invalidateDirCache() {
-	d.dirCacheMtx.Lock()
+	MeasureLock(&d.dirCacheMtx)
 	defer d.dirCacheMtx.Unlock()
 	d.invalidateDirCacheLocked()
 }
 
 func (d *Database) updateDirCache() error {
-	d.dirCacheMtx.Lock()
-	defer d.dirCacheMtx.Unlock()
-	if d.dirCache != nil {
-		return nil
-	}
 	rows, err := d.stmtGetAllDirs.Query()
 	if err != nil {
 		return err
@@ -239,7 +242,5 @@ func (d *Database) updateDirCache() error {
 			d.dirCache[dn] = append(d.dirCache[dn], f)
 		}
 	}
-	fmt.Printf("dirCache: %+v\n", d.dirCache)
-	d.dirCacheCond.Broadcast()
 	return rows.Err()
 }
