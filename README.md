@@ -1,5 +1,7 @@
 # RUFS
 
+[![Build Status](https://travis-ci.org/Jille/rufs.png)](https://travis-ci.org/Jile/rufs)
+
 RUFS is a filesystem that makes it easy to conveniently shares files with
 others. You need to run one master job which ties everything together and
 participants can run servers that connect to the master and publish which files
