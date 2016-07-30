@@ -335,6 +335,9 @@ type handle struct {
 
 func (h *handle) Read(ctx context.Context, request *fuse.ReadRequest, response *fuse.ReadResponse) (retErr error) {
 	response.Data, retErr = h.pfh.Read(ctx, request.Offset, request.Size)
+	if retErr == ErrInterrupted {
+		retErr = fuse.EINTR
+	}
 	return retErr
 }
 

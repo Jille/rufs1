@@ -10,7 +10,6 @@ import (
 	"sync"
 	"time"
 
-	"bazil.org/fuse"
 	humanize "github.com/dustin/go-humanize"
 	"golang.org/x/net/context"
 )
@@ -22,6 +21,8 @@ var (
 	prefetchBlocks      = flag.Uint("prefetch_blocks", 0, "Prefetch this number of blocks")
 
 	fetchers = map[*Server]*Fetcher{}
+
+	ErrInterrupted = errors.New("ErrInterrupted")
 )
 
 type Fetcher struct {
@@ -133,7 +134,7 @@ func (f *Fetcher) NewHandle(hash string, size int64, peers []string) (*pfHandle,
 		}
 	}
 	if !found {
-		return nil, fuse.EIO
+		return nil, errors.New("didn't find peer with file")
 	}
 	return h, nil
 }
@@ -214,7 +215,7 @@ func (h *pfHandle) Read(ctx context.Context, offset int64, size int) ([]byte, er
 		log.Println("Waiting for block...")
 		select {
 		case <-ctx.Done():
-			return nil, fuse.EINTR
+			return nil, ErrInterrupted
 		case <-c:
 		}
 	}
