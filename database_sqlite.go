@@ -122,7 +122,16 @@ func (d *Database) SetFile(fnEx []string, fi *FileInfo, owner string) error {
 		}
 		d.dirCacheMtx.Lock()
 		if d.dirCache != nil && d.dirCache[dn] == nil {
-			d.invalidateDirCacheLocked()
+			for s := len(fnEx) - 1; s > 0; s-- {
+				dn := strings.Join(fnEx[:s], "/")
+				if d.dirCache[dn] != nil {
+					break
+				}
+				pdn := strings.Join(fnEx[:s-1], "/")
+				f := fnEx[s-1]
+				d.dirCache[pdn] = append(d.dirCache[pdn], f)
+			}
+			d.dirCache[dn] = []string{}
 		}
 		d.dirCacheMtx.Unlock()
 	} else {
@@ -206,14 +215,10 @@ func (d *Database) GetDir(dir string) (files map[string]FileInfo, dirs []string,
 	return files, dirs, nil
 }
 
-func (d *Database) invalidateDirCacheLocked() {
-	d.dirCache = nil
-}
-
 func (d *Database) invalidateDirCache() {
 	MeasureLock(&d.dirCacheMtx)
 	defer d.dirCacheMtx.Unlock()
-	d.invalidateDirCacheLocked()
+	d.dirCache = nil
 }
 
 func (d *Database) updateDirCache() error {
