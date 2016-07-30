@@ -23,6 +23,7 @@ cd rufs
 go get bazil.org/fuse
 go get golang.org/x/net/context
 go get github.com/dustin/go-humanize
+go get github.com/goftp/server
 make
 ./rufs --master_gen_keys
 AUTH_TOKEN=`./rufs --get_auth_token=$USER`
