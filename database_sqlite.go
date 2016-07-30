@@ -216,7 +216,7 @@ func (d *Database) GetDir(dir string) (files map[string]FileInfo, dirs []string,
 }
 
 func (d *Database) invalidateDirCache() {
-	MeasureLock(&d.dirCacheMtx)
+	d.dirCacheMtx.Lock()
 	defer d.dirCacheMtx.Unlock()
 	d.dirCache = nil
 }
