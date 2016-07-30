@@ -17,8 +17,6 @@ import (
 	"path/filepath"
 	"sync"
 	"time"
-
-	humanize "github.com/dustin/go-humanize"
 )
 
 var (
@@ -35,21 +33,15 @@ var (
 )
 
 type Server struct {
-	masterAddr     string
-	master         *RUFSMasterClient
-	sock           net.Listener
-	share          string
-	localCacheDir  string
-	localCacheSize uint64
-	ca             *x509.Certificate
-	cert           *tls.Certificate
+	masterAddr string
+	master     *RUFSMasterClient
+	sock       net.Listener
+	share      string
+	ca         *x509.Certificate
+	cert       *tls.Certificate
 }
 
 func newServer(master string) (*Server, error) {
-	lcs, err := humanize.ParseBytes(*localCacheSize)
-	if err != nil {
-		return nil, err
-	}
 	ca, err := loadCertificate(getPath(*masterCert))
 	if err != nil {
 		return nil, err
@@ -69,12 +61,10 @@ func newServer(master string) (*Server, error) {
 		cert = &crt
 	}
 	return &Server{
-		masterAddr:     master,
-		share:          getPath(*share),
-		localCacheDir:  getPath(*localCacheDir),
-		localCacheSize: lcs,
-		ca:             ca,
-		cert:           cert,
+		masterAddr: master,
+		share:      getPath(*share),
+		ca:         ca,
+		cert:       cert,
 	}, nil
 }
 

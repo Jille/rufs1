@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"bazil.org/fuse"
+	humanize "github.com/dustin/go-humanize"
 	"golang.org/x/net/context"
 )
 
@@ -19,20 +20,44 @@ var (
 	localCacheSize      = flag.String("local_cache_size", "20G", "How big the local cache can be")
 	fetchBlockSizePower = flag.Uint("fetch_block_size_power", 16, "Will fetch all data in blocks of 2^<value>.")
 	prefetchBlocks      = flag.Uint("prefetch_blocks", 0, "Prefetch this number of blocks")
+
+	fetchers = map[*Server]*Fetcher{}
 )
 
 type Fetcher struct {
-	server    *Server
-	peers     map[string]*pfPeer
-	blockSize int
+	server         *Server
+	peers          map[string]*pfPeer
+	blockSize      int
+	localCacheDir  string
+	localCacheSize uint64
 }
 
-func NewFetcher(server *Server) *Fetcher {
-	return &Fetcher{
-		server:    server,
-		peers:     map[string]*pfPeer{},
-		blockSize: 1 << *fetchBlockSizePower,
+func GetFetcher(server *Server) (*Fetcher, error) {
+	if f, found := fetchers[server]; found {
+		return f, nil
 	}
+	lcs, err := humanize.ParseBytes(*localCacheSize)
+	if err != nil {
+		return nil, err
+	}
+	f := &Fetcher{
+		server:         server,
+		peers:          map[string]*pfPeer{},
+		blockSize:      1 << *fetchBlockSizePower,
+		localCacheDir:  getPath(*localCacheDir),
+		localCacheSize: lcs,
+	}
+	fetchers[server] = f
+	return f, nil
+}
+
+func (f *Fetcher) Setup() error {
+	return nil
+}
+
+func (f *Fetcher) Run(done <-chan void) error {
+	<-done
+	return nil
 }
 
 type pfPeer struct {

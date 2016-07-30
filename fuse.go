@@ -57,13 +57,17 @@ func newFuseMnt(mountpoint string, server *Server) (*FuseMnt, error) {
 			allowedUsers[uint32(s)] = true
 		}
 	}
+	f, err := GetFetcher(server)
+	if err != nil {
+		return nil, err
+	}
 	return &FuseMnt{
 		server:       server,
 		mountpoint:   mountpoint,
 		allowedUsers: allowedUsers,
 		cache:        map[string]*GetDirReply{},
 		cacheExpiry:  map[string]int{},
-		fetcher:      NewFetcher(server),
+		fetcher:      f,
 	}, nil
 }
 
