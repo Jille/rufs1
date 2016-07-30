@@ -160,12 +160,13 @@ func (s *Server) writeHashCache(c map[string]FileInfo) error {
 	if err != nil {
 		return err
 	}
-	defer fh.Close()
 	gz := gzip.NewWriter(fh)
-	defer gz.Close()
 	enc := gob.NewEncoder(gz)
-	if err := enc.Encode(&c); err != nil {
-		return nil
+	err = enc.Encode(&c)
+	gz.Close()
+	fh.Close()
+	if err != nil {
+		return err
 	}
 	return os.Rename(filepath.Join(getPath(*varStorage), "hashcache.dat.new"), filepath.Join(getPath(*varStorage), "hashcache.dat"))
 }
