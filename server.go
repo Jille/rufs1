@@ -22,14 +22,12 @@ import (
 )
 
 var (
-	port           = flag.Int("port", 1667, "Flag to run the server at")
-	extIp          = flag.String("external_ip", "", "Your external IP (if not detected automatically)")
-	share          = flag.String("share", "", "Share this folder")
-	user           = flag.String("user", "quis", "Who are you?")
-	localCacheDir  = flag.String("local_cache_dir", "%rufs_var_storage%/cache/", "Where to store local cache")
-	localCacheSize = flag.String("local_cache_size", "20G", "How big the local cache can be")
-	registerToken  = flag.String("register_token", "", "Register with the master and get certificates")
-	masterCert     = flag.String("master_cert", "%rufs_var_storage%/master/ca.crt", "Path to ca file of the master")
+	port          = flag.Int("port", 1667, "Flag to run the server at")
+	extIp         = flag.String("external_ip", "", "Your external IP (if not detected automatically)")
+	share         = flag.String("share", "", "Share this folder")
+	user          = flag.String("user", "quis", "Who are you?")
+	registerToken = flag.String("register_token", "", "Register with the master and get certificates")
+	masterCert    = flag.String("master_cert", "%rufs_var_storage%/master/ca.crt", "Path to ca file of the master")
 
 	fileCacheMtx sync.Mutex
 	fileCache    = map[string]FileInfo{}

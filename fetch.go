@@ -15,8 +15,10 @@ import (
 )
 
 var (
+	localCacheDir       = flag.String("local_cache_dir", "%rufs_var_storage%/cache/", "Where to store local cache")
+	localCacheSize      = flag.String("local_cache_size", "20G", "How big the local cache can be")
 	fetchBlockSizePower = flag.Uint("fetch_block_size_power", 16, "Will fetch all data in blocks of 2^<value>.")
-	prefetchBlocks = flag.Uint("prefetch_blocks", 0, "Prefetch this number of blocks")
+	prefetchBlocks      = flag.Uint("prefetch_blocks", 0, "Prefetch this number of blocks")
 )
 
 type Fetcher struct {
@@ -170,13 +172,13 @@ func (h *pfHandle) Read(ctx context.Context, offset int64, size int) ([]byte, er
 		}
 	}
 	// Ugly-ass purging
-	if b := blocks[0] / bs64 - 1; b > 0 && h.cache[b] != nil {
+	if b := blocks[0]/bs64 - 1; b > 0 && h.cache[b] != nil {
 		h.cache[b] = nil
 		h.active[b] = nil
 	}
 	// prefetch
 	for i := uint(0); *prefetchBlocks > i; i++ {
-		b := blocks[len(blocks)-1] / bs64 + 1 + int64(i)
+		b := blocks[len(blocks)-1]/bs64 + 1 + int64(i)
 		if b*bs64 < h.size && h.cache[b] == nil && h.active[b] == nil {
 			h.fetch(b * bs64)
 		}
