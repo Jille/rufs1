@@ -57,7 +57,6 @@ type module interface {
 
 func main() {
 	flag.Parse()
-	log.Printf("Hello world")
 
 	if *masterGenKeys {
 		if err := genMasterKeys(); err != nil {
@@ -98,8 +97,10 @@ func main() {
 	}
 
 	if len(mods) == 0 {
-		ret <- errors.New("You need to specify either --master_port or --master")
+		err := errors.New("You need to specify either --master_port or --master")
+		log.Fatalln(err)
 	}
+
 	for _, m := range mods {
 		if err := m.Setup(); err != nil {
 			log.Fatalln(err)
