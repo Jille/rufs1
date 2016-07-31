@@ -87,11 +87,11 @@ type FTPDriver struct {
 
 func (d *FTPDriver) Init(conn *ftpserver.Conn) {
 	var err error
-	defer LogRPC("ftp.Init", nil, nil, &err)
+	defer LogRPC("ftp.Init", nil, nil, &err)()
 }
 
 func (d *FTPDriver) Stat(path string) (fi ftpserver.FileInfo, retErr error) {
-	defer LogRPC("ftp.Stat", path, fi, &retErr)
+	defer LogRPC("ftp.Stat", path, fi, &retErr)()
 	path = strings.Trim(filepath.ToSlash(path), "/")
 	if path == "" {
 		return FTPFileInfo{"/", nil, true}, nil
@@ -113,7 +113,7 @@ func (d *FTPDriver) Stat(path string) (fi ftpserver.FileInfo, retErr error) {
 }
 
 func (d *FTPDriver) ChangeDir(dir string) (retErr error) {
-	defer LogRPC("ftp.ChangeDir", dir, nil, &retErr)
+	defer LogRPC("ftp.ChangeDir", dir, nil, &retErr)()
 	dir = filepath.ToSlash(dir)
 	info, err := d.Stat(dir)
 	if err != nil {
@@ -126,7 +126,7 @@ func (d *FTPDriver) ChangeDir(dir string) (retErr error) {
 }
 
 func (d *FTPDriver) ListDir(dir string, cb func(i ftpserver.FileInfo) error) (retErr error) {
-	defer LogRPC("ftp.ListDir", dir, nil, &retErr)
+	defer LogRPC("ftp.ListDir", dir, nil, &retErr)()
 	dir = filepath.ToSlash(dir)
 	ret, err := d.fs.GetDirCached(dir)
 	if err != nil {
@@ -174,7 +174,7 @@ func (d *FTPDriver) MakeDir(dir string) error {
 }
 
 func (d *FTPDriver) GetFile(fn string, offset int64) (size int64, stream io.ReadCloser, retErr error) {
-	defer LogRPC("ftp.GetFile", fn, nil, &retErr)
+	defer LogRPC("ftp.GetFile", fn, nil, &retErr)()
 	fn = filepath.ToSlash(fn)
 	fi, err := d.fs.GetFileInfo(fn)
 	var ret *GetOwnersReply
