@@ -1,4 +1,4 @@
-// +build !windows,!nofuse !noftp
+// +build !windows,!netbsd,!openbsd,!nofuse !noftp
 
 package main
 
