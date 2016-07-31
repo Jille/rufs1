@@ -10,12 +10,12 @@ import (
 	"net/rpc"
 	"os"
 	"strings"
-	"sync"
 )
 
 type Peer struct {
 	user    string
 	address string
+	ident   string
 	conn    *tls.Conn
 }
 
@@ -24,13 +24,11 @@ var (
 )
 
 type Master struct {
-	port     int
-	dir      string
-	sock     net.Listener
-	mtx      sync.RWMutex
-	fileTree *Directory
-	owners   map[string]map[*Peer]int
-	vault    *MasterVault
+	port  int
+	dir   string
+	sock  net.Listener
+	vault *MasterVault
+	db    *Database
 }
 
 func newMaster(port int) (*Master, error) {
@@ -41,12 +39,16 @@ func newMaster(port int) (*Master, error) {
 		return nil, err
 	}
 
+	db, err := newDatabase()
+	if err != nil {
+		return nil, err
+	}
+
 	return &Master{
-		port:     port,
-		dir:      dir,
-		fileTree: &Directory{map[string]*Directory{}, map[string]FileInfo{}, 0},
-		owners:   map[string]map[*Peer]int{},
-		vault:    vault,
+		port:  port,
+		dir:   dir,
+		vault: vault,
+		db:    db,
 	}, nil
 }
 
@@ -142,6 +144,7 @@ func (s RUFSMasterService) Signin(q SigninRequest, r *SigninReply) (retErr error
 			return fmt.Errorf("Failed to ping to %q: %v", addr, err)
 		}
 		s.peer.address = addr
+		s.peer.ident = fmt.Sprintf("%s@%s", q.User, addr)
 	}
 	s.peer.user = q.User
 	return nil
@@ -158,57 +161,7 @@ func (s RUFSMasterService) SetFile(q SetFileRequest, r *SetFileReply) (retErr er
 			return fmt.Errorf("Invalid part in filename: %q", p)
 		}
 	}
-	deletion := (q.Info == nil)
-	s.master.mtx.Lock()
-	defer s.master.mtx.Unlock()
-	t := s.master.fileTree
-	trace := make([]*Directory, 0, len(ex))
-	for i := 0; len(ex)-1 > i; i++ {
-		p := ex[i]
-		if sd, ok := t.dirs[p]; ok {
-			t = sd
-		} else {
-			if deletion {
-				// File didn't even exist.
-				return nil
-			}
-			t.refs++
-			t.dirs[p] = &Directory{map[string]*Directory{}, map[string]FileInfo{}, 0}
-			t = t.dirs[p]
-		}
-		trace = append(trace, t)
-	}
-	fn := ex[len(ex)-1]
-	if f, found := t.files[fn]; found {
-		s.master.owners[f.Hash][s.peer]--
-		if s.master.owners[f.Hash][s.peer] == 0 {
-			delete(s.master.owners[f.Hash], s.peer)
-		}
-	}
-	if deletion {
-		if _, found := t.files[fn]; found {
-			delete(t.files, fn)
-			for i := len(trace) - 1; 0 >= i; i++ {
-				tr := trace[i]
-				tr.refs--
-				if tr.refs > 0 || i == 1 {
-					break
-				}
-				parent := trace[i-1]
-				delete(parent.dirs, ex[i])
-			}
-		}
-		return nil
-	}
-	if _, found := t.files[fn]; !found {
-		t.refs++
-	}
-	t.files[fn] = *q.Info
-	if _, existent := s.master.owners[q.Info.Hash]; !existent {
-		s.master.owners[q.Info.Hash] = map[*Peer]int{}
-	}
-	s.master.owners[q.Info.Hash][s.peer]++
-	return nil
+	return s.master.db.SetFile(ex, q.Info, s.peer.ident)
 }
 
 func (s RUFSMasterService) GetDir(q GetDirRequest, r *GetDirReply) (retErr error) {
@@ -216,29 +169,13 @@ func (s RUFSMasterService) GetDir(q GetDirRequest, r *GetDirReply) (retErr error
 	if s.peer.user == "" {
 		return errors.New("GetDir denied before calling Signin")
 	}
-	s.master.mtx.RLock()
-	defer s.master.mtx.RUnlock()
 	path := strings.Trim(q.Path, "/")
-	ex := strings.Split(path, "/")
-	if path == "" {
-		ex = nil
+	files, dirs, err := s.master.db.GetDir(path)
+	if err != nil {
+		return err
 	}
-	t := s.master.fileTree
-	for _, p := range ex {
-		if len(p) == 0 || p[0] == '.' {
-			return fmt.Errorf("Invalid part in filename: %q", p)
-		}
-		if sd, ok := t.dirs[p]; ok {
-			t = sd
-		} else {
-			return fmt.Errorf("ENOENT")
-		}
-	}
-	r.Dirs = make([]string, 0, len(t.dirs))
-	for d := range t.dirs {
-		r.Dirs = append(r.Dirs, d)
-	}
-	r.Files = t.files
+	r.Dirs = dirs
+	r.Files = files
 	return nil
 }
 
@@ -247,12 +184,8 @@ func (s RUFSMasterService) GetOwners(q GetOwnersRequest, r *GetOwnersReply) (ret
 	if s.peer.user == "" {
 		return errors.New("GetOwners denied before calling Signin")
 	}
-	s.master.mtx.RLock()
-	defer s.master.mtx.RUnlock()
-	for p := range s.master.owners[q.Hash] {
-		r.Owners = append(r.Owners, fmt.Sprintf("%s@%s", p.user, p.address))
-	}
-	return nil
+	r.Owners, retErr = s.master.db.GetOwners(q.Hash)
+	return retErr
 }
 
 func (p *Peer) Disconnected(m *Master) {
@@ -262,14 +195,7 @@ func (p *Peer) Disconnected(m *Master) {
 		return
 	}
 
-	m.mtx.Lock()
-	delete(m.fileTree.dirs, p.user)
-	for hash := range m.owners {
-		if _, found := m.owners[hash][p]; found {
-			delete(m.owners[hash], p)
-		}
-	}
-	m.mtx.Unlock()
+	m.db.PeerDisconnected(p.ident)
 }
 
 func genMasterKeys() error {
