@@ -17,19 +17,15 @@ import (
 	"path/filepath"
 	"sync"
 	"time"
-
-	humanize "github.com/dustin/go-humanize"
 )
 
 var (
-	port           = flag.Int("port", 1667, "Flag to run the server at")
-	extIp          = flag.String("external_ip", "", "Your external IP (if not detected automatically)")
-	share          = flag.String("share", "", "Share this folder")
-	user           = flag.String("user", "quis", "Who are you?")
-	localCacheDir  = flag.String("local_cache_dir", "%rufs_var_storage%/cache/", "Where to store local cache")
-	localCacheSize = flag.String("local_cache_size", "20G", "How big the local cache can be")
-	registerToken  = flag.String("register_token", "", "Register with the master and get certificates")
-	masterCert     = flag.String("master_cert", "%rufs_var_storage%/master/ca.crt", "Path to ca file of the master")
+	port          = flag.Int("port", 1667, "Flag to run the server at")
+	extIp         = flag.String("external_ip", "", "Your external IP (if not detected automatically)")
+	share         = flag.String("share", "", "Share this folder")
+	user          = flag.String("user", "quis", "Who are you?")
+	registerToken = flag.String("register_token", "", "Register with the master and get certificates")
+	masterCert    = flag.String("master_cert", "%rufs_var_storage%/master/ca.crt", "Path to ca file of the master")
 
 	fileCacheMtx sync.Mutex
 	fileCache    = map[string]FileInfo{}
@@ -37,21 +33,15 @@ var (
 )
 
 type Server struct {
-	masterAddr     string
-	master         *RUFSMasterClient
-	sock           net.Listener
-	share          string
-	localCacheDir  string
-	localCacheSize uint64
-	ca             *x509.Certificate
-	cert           *tls.Certificate
+	masterAddr string
+	master     *RUFSMasterClient
+	sock       net.Listener
+	share      string
+	ca         *x509.Certificate
+	cert       *tls.Certificate
 }
 
 func newServer(master string) (*Server, error) {
-	lcs, err := humanize.ParseBytes(*localCacheSize)
-	if err != nil {
-		return nil, err
-	}
 	ca, err := loadCertificate(getPath(*masterCert))
 	if err != nil {
 		return nil, err
@@ -71,12 +61,10 @@ func newServer(master string) (*Server, error) {
 		cert = &crt
 	}
 	return &Server{
-		masterAddr:     master,
-		share:          getPath(*share),
-		localCacheDir:  getPath(*localCacheDir),
-		localCacheSize: lcs,
-		ca:             ca,
-		cert:           cert,
+		masterAddr: master,
+		share:      getPath(*share),
+		ca:         ca,
+		cert:       cert,
 	}, nil
 }
 
