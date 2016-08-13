@@ -135,7 +135,7 @@ func (f *FScanner) Run(done <-chan void) (retErr error) {
 
 func (f *FScanner) rpcThread() {
 	for req := range f.rpcCh {
-		if err := f.server.master.SetFile(req); err != nil {
+		if err := retryBackoff(func() error { return f.server.master.SetFile(req) }); err != nil {
 			log.Printf("SetFile(%+v) failed: %v", req, err)
 			continue
 		}

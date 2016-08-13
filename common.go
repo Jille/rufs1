@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"math/rand"
 	"os"
 	"time"
 )
@@ -42,4 +43,15 @@ func LogRPC(name string, q interface{}, r interface{}, err *error) func() {
 		close(done)
 		log.Printf("Handled RPC %s in %s: %+v -> %+v, %v", name, t, q, r, *err)
 	}
+}
+
+func retryBackoff(cb func() error) (err error) {
+	for t := 0; t < 3; t++ {
+		err = cb()
+		if err == nil {
+			break
+		}
+		time.Sleep(time.Duration(t)*time.Second + time.Duration(rand.Intn(int(time.Second))))
+	}
+	return
 }
