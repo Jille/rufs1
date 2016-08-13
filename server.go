@@ -357,7 +357,6 @@ func (RUFSService) Read(q ReadRequest, r *ReadReply) (retErr error) {
 	n, err := file.Read(buffer)
 	r.Data = buffer[:n]
 	if err == io.EOF {
-		r.EOF = true
 		return nil
 	}
 	return err

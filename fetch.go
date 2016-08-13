@@ -181,7 +181,7 @@ func (h *pfHandle) Close() {
 
 func (h *pfHandle) Read(ctx context.Context, offset int64, size int) ([]byte, error) {
 	if offset >= h.size {
-		return nil, io.EOF
+		return nil, nil
 	}
 	bs := h.fetcher.blockSize
 	bs64 := int64(bs)
@@ -281,8 +281,12 @@ func (s *pfStream) Read(p []byte) (n int, err error) {
 		return 0, err
 	}
 	copy(p, data)
-	s.offset += int64(len(data))
-	return len(data), nil
+	n = len(data)
+	s.offset += int64(n)
+	if n < len(p) {
+		err = io.EOF
+	}
+	return
 }
 
 func (s *pfStream) Close() error {

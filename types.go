@@ -226,7 +226,6 @@ type ReadRequest struct {
 
 type ReadReply struct {
 	Data []byte
-	EOF  bool
 }
 
 func (c *RUFSClient) Read(hash string, offset int64, size int) (ret *ReadReply, err error) {
