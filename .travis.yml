@@ -1,5 +1,8 @@
 language: go
 
+go:
+- 1.6
+
 env:
 - GIMME_OS=linux GIMME_ARCH=386
 - GIMME_OS=linux GIMME_ARCH=amd64
