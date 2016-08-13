@@ -1,10 +1,8 @@
 package main
 
 import (
-	"compress/gzip"
 	"crypto/tls"
 	"crypto/x509"
-	"encoding/gob"
 	"errors"
 	"flag"
 	"fmt"
@@ -16,7 +14,6 @@ import (
 	"os"
 	"path/filepath"
 	"sync"
-	"time"
 )
 
 var (
@@ -119,203 +116,8 @@ func (s *Server) Run(done <-chan void) error {
 	defer s.master.Close()
 	defer s.sock.Close()
 
-	go s.fsScanner(done)
 	<-done
 	return nil
-}
-
-func (s *Server) readHashCache() (map[string]FileInfo, error) {
-	fh, err := os.Open(filepath.Join(getPath(*varStorage), "hashcache.dat"))
-	if err != nil {
-		return nil, err
-	}
-	defer fh.Close()
-	gz, err := gzip.NewReader(fh)
-	if err != nil {
-		return nil, err
-	}
-	defer gz.Close()
-	dec := gob.NewDecoder(gz)
-	var c map[string]FileInfo
-	if err := dec.Decode(&c); err != nil {
-		return nil, err
-	}
-	return c, nil
-}
-
-func (s *Server) writeHashCache(c map[string]FileInfo) error {
-	fh, err := os.Create(filepath.Join(getPath(*varStorage), "hashcache.dat.new"))
-	if err != nil {
-		return err
-	}
-	gz := gzip.NewWriter(fh)
-	enc := gob.NewEncoder(gz)
-	err = enc.Encode(&c)
-	gz.Close()
-	fh.Close()
-	if err != nil {
-		return err
-	}
-	return os.Rename(filepath.Join(getPath(*varStorage), "hashcache.dat.new"), filepath.Join(getPath(*varStorage), "hashcache.dat"))
-}
-
-func (s *Server) fsScanner(done <-chan void) {
-	if len(*share) == 0 {
-		return
-	}
-	walkMtx := sync.Mutex{}
-	rpc := make(chan SetFileRequest)
-	defer func() {
-		walkMtx.Lock()
-		close(rpc)
-		walkMtx.Unlock()
-	}()
-	for i := 0; 4 > i; i++ {
-		go func() {
-			for req := range rpc {
-				if err := s.master.SetFile(req); err != nil {
-					log.Printf("SetFile(%+v) failed: %v", req, err)
-				} else {
-					fileCacheMtx.Lock()
-					if f, ok := fileCache[req.Path]; ok {
-						delete(hashToPath[f.Hash], req.Path)
-					}
-					if req.Info == nil {
-						delete(fileCache, req.Path)
-					} else {
-						fileCache[req.Path] = *req.Info
-						if _, ok := hashToPath[req.Info.Hash]; !ok {
-							hashToPath[req.Info.Hash] = map[string]void{}
-						}
-						hashToPath[req.Info.Hash][req.Path] = void{}
-					}
-					fileCacheMtx.Unlock()
-				}
-			}
-		}()
-	}
-
-	s.master.AppendReconnectCallback(func(c *RUFSMasterClient) error {
-		go func() {
-			walkMtx.Lock()
-			defer walkMtx.Unlock()
-			select {
-			case <-done:
-				return
-			default:
-			}
-			fileCacheMtx.Lock()
-			fcCopy := fileCache
-			fileCacheMtx.Unlock()
-			for fn, info := range fcCopy {
-				rpc <- SetFileRequest{
-					Path: fn,
-					Info: &info,
-				}
-			}
-		}()
-		return nil
-	})
-
-	cacheSeed, err := s.readHashCache()
-	if err != nil {
-		log.Printf("Couldn't load hashcache.dat: %v", err)
-	}
-	fastPass := (cacheSeed != nil)
-	firstPassDone := false
-	go func() {
-		for range time.Tick(time.Minute) {
-			if firstPassDone {
-				return
-			}
-			if fastPass {
-				continue
-			}
-			fileCacheMtx.Lock()
-			if err := s.writeHashCache(fileCache); err != nil {
-				log.Printf("Couldn't write hashcache.dat: %v", err)
-			}
-			fileCacheMtx.Unlock()
-		}
-	}()
-	for {
-		walkMtx.Lock()
-		missing := map[string]bool{}
-		for fn := range fileCache {
-			missing[fn] = true
-		}
-		filepath.Walk(*share, func(path string, info os.FileInfo, err error) error {
-			if err != nil {
-				return nil
-			}
-			fmt.Printf("%s (%v, %v)\n", path, info, err)
-			rel, err := filepath.Rel(*share, path)
-			if err != nil {
-				panic(err)
-			}
-			if base := filepath.Base(rel); base[0] == '.' && base != "." && base != ".." {
-				if info.IsDir() {
-					return filepath.SkipDir
-				}
-				return nil
-			}
-			if info.Mode()&os.ModeType > 0 {
-				return nil
-			}
-			fileCacheMtx.Lock()
-			if f, ok := fileCache[rel]; ok && f.Size == info.Size() && f.Mtime == info.ModTime() {
-				fileCacheMtx.Unlock()
-				delete(missing, rel)
-				return nil
-			}
-			fileCacheMtx.Unlock()
-			var hash string
-			if f, ok := cacheSeed[rel]; ok && f.Size == info.Size() && f.Mtime == info.ModTime() {
-				hash = f.Hash
-			} else {
-				if fastPass {
-					return nil
-				}
-				hash, err = HashFile(path)
-				if err != nil {
-					return nil
-				}
-			}
-			delete(missing, rel)
-			rpc <- SetFileRequest{
-				Path: rel,
-				Info: &FileInfo{
-					Hash:  hash,
-					Size:  info.Size(),
-					Mtime: info.ModTime(),
-				},
-			}
-			return nil
-		})
-		cacheSeed = nil
-		for fn := range missing {
-			rpc <- SetFileRequest{
-				Path: fn,
-				Info: nil,
-			}
-		}
-		walkMtx.Unlock()
-		if fastPass {
-			fastPass = false
-			continue
-		}
-		fileCacheMtx.Lock()
-		if err := s.writeHashCache(fileCache); err != nil {
-			log.Printf("Couldn't write hashcache.dat: %v", err)
-		}
-		fileCacheMtx.Unlock()
-		firstPassDone = true
-		select {
-		case <-done:
-			return
-		case <-time.After(time.Minute):
-		}
-	}
 }
 
 func (RUFSService) Ping(q PingRequest, r *PingReply) (retErr error) {
