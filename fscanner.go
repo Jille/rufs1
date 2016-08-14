@@ -71,18 +71,12 @@ func (f *FScanner) Run(done <-chan void) (retErr error) {
 	for i := 0; 4 > i; i++ {
 		go f.rpcThread()
 	}
-	initwT := make(chan time.Time)
-	var wT <-chan time.Time = initwT
-	go func() {
-		cacheSeed, err := f.readHashCache()
-		if err != nil {
-			log.Printf("Couldn't load hashcache.dat: %v", err)
-		} else {
-			f.walk("", true, cacheSeed)
-		}
-		go f.hashCacheFlusher(done)
-		initwT <- time.Now()
-	}()
+	cacheSeed, err := f.readHashCache()
+	if err != nil {
+		log.Printf("Couldn't load hashcache.dat: %v", err)
+	} else {
+		f.walk("", true, cacheSeed)
+	}
 	var fsNotifyEvents chan fsnotify.Event
 	var fsNotifyErrs chan error
 	if f.watcher != nil {
@@ -90,6 +84,8 @@ func (f *FScanner) Run(done <-chan void) (retErr error) {
 		fsNotifyErrs = f.watcher.Errors
 		go f.notificationHandler()
 	}
+	go f.hashCacheFlusher(done)
+	wT := time.After(time.Microsecond)
 	for {
 		select {
 		case event := <-fsNotifyEvents:
