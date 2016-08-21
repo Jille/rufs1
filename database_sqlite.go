@@ -172,45 +172,39 @@ func (d *Database) GetOwners(hash string) ([]string, error) {
 	return ret, nil
 }
 
-func (d *Database) GetDir(dir string) (files map[string]FileInfo, dirs []string, err error) {
+func (d *Database) GetDir(dir string) (map[string]FileInfo, []string, error) {
 	d.dbLock.RLock()
 	defer d.dbLock.RUnlock()
-	ch := make(chan []string, 1)
-	go func() {
-		d.dirCacheMtx.Lock()
-		defer d.dirCacheMtx.Unlock()
-		for d.dirCache == nil {
-			d.updateDirCache()
-		}
-		ch <- d.dirCache[dir]
-	}()
 
-	files, err = func() (ret map[string]FileInfo, err error) {
-		rows, err := d.stmtGetDir.Query(dir)
+	d.dirCacheMtx.Lock()
+	if d.dirCache == nil {
+		d.updateDirCache()
+	}
+	dirs := d.dirCache[dir]
+	d.dirCacheMtx.Unlock()
+
+	rows, err := d.stmtGetDir.Query(dir)
+	if err != nil {
+		return nil, nil, err
+	}
+	defer rows.Close()
+	files := map[string]FileInfo{}
+	for rows.Next() {
+		var file, hash string
+		var size, mtime int64
+		err = rows.Scan(&file, &size, &mtime, &hash)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
-		defer rows.Close()
-		ret = map[string]FileInfo{}
-		for rows.Next() {
-			var file, hash string
-			var size, mtime int64
-			err = rows.Scan(&file, &size, &mtime, &hash)
-			if err != nil {
-				return nil, err
-			}
-			ret[file] = FileInfo{
-				Size:  size,
-				Mtime: time.Unix(mtime, 0),
-				Hash:  hash,
-			}
+		files[file] = FileInfo{
+			Size:  size,
+			Mtime: time.Unix(mtime, 0),
+			Hash:  hash,
 		}
-		if err := rows.Err(); err != nil {
-			return nil, err
-		}
-		return ret, nil
-	}()
-	dirs = <-ch
+	}
+	if err := rows.Err(); err != nil {
+		return nil, nil, err
+	}
 
 	return files, dirs, nil
 }
