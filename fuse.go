@@ -15,6 +15,7 @@ import (
 
 	"bazil.org/fuse"
 	"bazil.org/fuse/fs"
+	"github.com/Jille/errchain"
 	"golang.org/x/net/context"
 )
 
@@ -105,11 +106,7 @@ func (f *FuseMnt) Run(done <-chan void) (retErr error) {
 	fsDone := make(chan void)
 	defer close(fsDone)
 	go f.cachePurger(fsDone)
-	defer func() {
-		if err := conn.Close(); err != nil && retErr == nil {
-			retErr = err
-		}
-	}()
+	defer errchain.Call(&retErr, conn.Close)
 	if err := fs.Serve(conn, f); err != nil {
 		return err
 	}

@@ -10,6 +10,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/Jille/errchain"
 	_ "github.com/mattn/go-sqlite3"
 )
 
@@ -97,11 +98,12 @@ CREATE INDEX idx_hash ON fs (hash);
 	return ret, nil
 }
 
-func (d *Database) Close() error {
-	d.stmtAddFile.Close()
-	d.stmtDeleteFile.Close()
-	d.stmtDisconnect.Close()
-	return d.db.Close()
+func (d *Database) Close() (retErr error) {
+	errchain.Append(&retErr, d.stmtAddFile.Close())
+	errchain.Append(&retErr, d.stmtDeleteFile.Close())
+	errchain.Append(&retErr, d.stmtDisconnect.Close())
+	errchain.Append(&retErr, d.db.Close())
+	return retErr
 }
 
 func (d *Database) SetFile(fnEx []string, fi *FileInfo, owner string) error {
@@ -165,8 +167,7 @@ func (d *Database) GetOwners(hash string) ([]string, error) {
 		}
 		ret = append(ret, peer)
 	}
-	err = rows.Err()
-	if err != nil {
+	if err = rows.Err(); err != nil {
 		return nil, err
 	}
 	return ret, nil

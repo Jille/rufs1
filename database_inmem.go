@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"strings"
 	"sync"
+
+	"github.com/Jille/errchain"
 )
 
 type Database struct {
@@ -101,23 +103,18 @@ func (d *Database) PeerDisconnected(owner string) error {
 	return d.searchAndDestroy(d.fileTree, todo, make([]string, 0, 30), owner)
 }
 
-func (d *Database) searchAndDestroy(dir *directory, victims map[string]void, parents []string, owner string) error {
-	var lastErr error
+func (d *Database) searchAndDestroy(dir *directory, victims map[string]void, parents []string, owner string) (retErr error) {
 	for fn, fi := range dir.files {
 		if _, found := victims[fi.Hash]; found {
 			if err := d.setFileLocked(append(parents, fn), nil, owner); err != nil {
-				if lastErr == nil {
-					lastErr = err
-				} else {
-					lastErr = fmt.Errorf("%v; %v", lastErr, err)
-				}
+				errchain.Append(&retErr, err)
 			}
 		}
 	}
 	for dn, subdir := range dir.dirs {
 		d.searchAndDestroy(subdir, victims, append(parents, dn), owner)
 	}
-	return lastErr
+	return retErr
 }
 
 func (d *Database) GetOwners(hash string) ([]string, error) {

@@ -7,6 +7,8 @@ import (
 	"log"
 	"os"
 	"time"
+
+	"github.com/Jille/errchain"
 )
 
 func HashFile(fn string) (string, error) {
@@ -16,7 +18,7 @@ func HashFile(fn string) (string, error) {
 		return "", err
 	}
 	_, err = io.Copy(h, fh)
-	fh.Close()
+	errchain.Append(&err, fh.Close())
 	if err != nil {
 		return "", err
 	}

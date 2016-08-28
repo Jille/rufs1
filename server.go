@@ -17,6 +17,8 @@ import (
 	"path/filepath"
 	"sync"
 	"time"
+
+	"github.com/Jille/errchain"
 )
 
 var (
@@ -124,19 +126,18 @@ func (s *Server) Run(done <-chan void) error {
 	return nil
 }
 
-func (s *Server) readHashCache() (map[string]FileInfo, error) {
+func (s *Server) readHashCache() (c map[string]FileInfo, retErr error) {
 	fh, err := os.Open(filepath.Join(getPath(*varStorage), "hashcache.dat"))
 	if err != nil {
 		return nil, err
 	}
-	defer fh.Close()
+	defer errchain.Call(&retErr, fh.Close)
 	gz, err := gzip.NewReader(fh)
 	if err != nil {
 		return nil, err
 	}
-	defer gz.Close()
+	defer errchain.Call(&retErr, gz.Close)
 	dec := gob.NewDecoder(gz)
-	var c map[string]FileInfo
 	if err := dec.Decode(&c); err != nil {
 		return nil, err
 	}
@@ -151,8 +152,8 @@ func (s *Server) writeHashCache(c map[string]FileInfo) error {
 	gz := gzip.NewWriter(fh)
 	enc := gob.NewEncoder(gz)
 	err = enc.Encode(&c)
-	gz.Close()
-	fh.Close()
+	errchain.Append(&err, gz.Close())
+	errchain.Append(&err, fh.Close())
 	if err != nil {
 		return err
 	}

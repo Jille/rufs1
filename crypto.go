@@ -14,6 +14,8 @@ import (
 	"os"
 	"path/filepath"
 	"time"
+
+	"github.com/Jille/errchain"
 )
 
 type MasterVault struct {
@@ -66,12 +68,12 @@ func createCA(dir string, name string) error {
 	pub := &priv.PublicKey
 	ca, err := x509.CreateCertificate(rand.Reader, t, t, pub, priv)
 	if err != nil {
-		os.Remove(keyfn)
+		errchain.Append(&err, os.Remove(keyfn))
 		return err
 	}
 
 	if err := pemToFile(filepath.Join(dir, "ca.crt"), "CERTIFICATE", ca, 0644); err != nil {
-		os.Remove(keyfn)
+		errchain.Append(&err, os.Remove(keyfn))
 		return err
 	}
 	return nil
@@ -150,12 +152,12 @@ func pemToFile(fn, pemType string, data []byte, mode os.FileMode) error {
 		return err
 	}
 	if err := pem.Encode(fh, &pem.Block{Type: pemType, Bytes: data}); err != nil {
-		fh.Close()
-		os.Remove(fn)
+		errchain.Append(&err, fh.Close())
+		errchain.Append(&err, os.Remove(fn))
 		return err
 	}
 	if err := fh.Close(); err != nil {
-		os.Remove(fn)
+		errchain.Append(&err, os.Remove(fn))
 		return err
 	}
 	return nil

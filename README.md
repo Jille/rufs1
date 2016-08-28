@@ -27,6 +27,7 @@ go get golang.org/x/net/context
 go get github.com/dustin/go-humanize
 go get github.com/mattn/go-sqlite3
 go get github.com/goftp/server
+go get github.com/Jille/errchain
 make
 ./rufs --master_gen_keys
 AUTH_TOKEN=`./rufs --get_auth_token=$USER`
