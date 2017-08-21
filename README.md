@@ -67,13 +67,10 @@ that hash and read it from a arbitrary one. (This will be improved later.)
 
 ## TODO
 
-* Local caching and prefetching - needed to get performance acceptable
-  * Prefetch while file is opened?
-	* Fetch from multiple peers
-* Split out jobs, allow running a serving node without mounting FUSE
-* Shield the filesystem from other local users while still allowing to run it as
-  any non-privileged user.
-* Require a password before mounting/accessing files (but not serving files)
+* Share multiple paths as multiple shares
 * Multi-master support?
-* More high-availability?
+* Remove need to manually get server public key
+* Don't do chunked Read RPCs. Switch to requesting streams.
+  * Store this locally and try to serve that too.
+* Switch server.go fileCache / hashToPath / hashcache.dat to Bolt
 * Virtual directories (where people can 'symlink' to their own stuff)
