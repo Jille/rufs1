@@ -1,4 +1,4 @@
-// +build !sqlite
+// +build !sqlite,!bolt
 
 package main
 

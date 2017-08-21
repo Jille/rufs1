@@ -7,8 +7,10 @@ env:
 install:
 - go get ./...
 - go get github.com/mattn/go-sqlite3
+- go get github.com/boltdb/bolt
 
 script:
 - "[ `gofmt -l *.go | wc -l` = 0 ]"
 - go build
 - go build -tags sqlite
+- go build -tags bolt
