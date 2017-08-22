@@ -39,8 +39,11 @@ screen -d -m -S rufs ./rufs --master=localhost:1337 --master_cert=$HOME/.rufs/ca
 ```
 
 --master_gen_keys will create the CA crt and private key. This is the very first thing you need.
+
 --gen_auth_token=$USER creates a token based on the private key that allows $USER to self-register
+
 --register_token sends that token to the master, which will sign your pubkey and give you a certificate
+
 you can leave out the openssl commands and just not pass --master_cert, as it'll by default read from the masters directory
 
 ## Technical design
