@@ -342,6 +342,7 @@ func (RUFSService) Read(q ReadRequest, r *ReadReply) (retErr error) {
 	for path := range paths {
 		file, err = os.Open(filepath.Join(*share, path))
 		if err == nil {
+			defer file.Close()
 			break
 		}
 	}
