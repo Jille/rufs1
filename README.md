@@ -18,16 +18,11 @@ sudo update-alternatives --install /usr/bin/gofmt gofmt /usr/lib/go-1.6/bin/gofm
 cd
 mkdir go
 export GOPATH=`pwd`/go
-mkdir go/src
+go get github.com/golang/dep/cmd/dep
 cd go/src
 git clone https://github.com/Jille/rufs.git
 cd rufs
-go get bazil.org/fuse
-go get golang.org/x/net/context
-go get github.com/dustin/go-humanize
-go get github.com/mattn/go-sqlite3
-go get github.com/goftp/server
-go get github.com/boltdb/bolt
+$GOPATH/bin/dep ensure
 make
 ./rufs --master_gen_keys
 AUTH_TOKEN=`./rufs --get_auth_token=$USER`
