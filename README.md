@@ -9,37 +9,47 @@ they have.
 
 RUFS provides a FUSE mount which will show all files shared by all participants.
 
-## Setup for dummies
+## Prerequisites
+
+* golang >= 1.8
+* `dep` (`go get github.com/golang/dep/cmd/dep`)
+
+## Setup master
 
 ```
-sudo apt-get install golang-1.6
-sudo update-alternatives --install /usr/bin/go go /usr/lib/go-1.6/bin/go 100
-sudo update-alternatives --install /usr/bin/gofmt gofmt /usr/lib/go-1.6/bin/gofmt 100
-cd
-mkdir go
-export GOPATH=`pwd`/go
-go get github.com/golang/dep/cmd/dep
-cd go/src
-git clone https://github.com/Jille/rufs.git
-cd rufs
-$GOPATH/bin/dep ensure
-make
-./rufs --master_gen_keys
-AUTH_TOKEN=`./rufs --get_auth_token=$USER`
-screen -d -m -S rufsmaster ./rufs --master_port=1337
-openssl s_client -showcerts -connect localhost:1337 < /dev/null 2>/dev/null | openssl x509 -outform PEM > ~/.rufs/ca.crt
-./rufs --master=localhost:1337 --master_cert=$HOME/.rufs/ca.crt --register_token=$AUTH_TOKEN --user=$USER
-mkdir ~/rufs-mnt
-screen -d -m -S rufs ./rufs --master=localhost:1337 --master_cert=$HOME/.rufs/ca.crt --user=$USER --mountpoint=$HOME/rufs-mnt --share=$HOME/Pictures
+make rufs_master
+useradd rufs-master
+mkdir /var/lib/rufs/
+chown rufs-master:nogroup /var/lib/rufs
+./rufs --var_storage /var/lib/rufs/ --master_gen_keys
+# publish the CA certificate stored in /var/lib/rufs/master/ca.crt somewhere for the clients
+systemctl enable rufs-master
+systemctl start rufs-master
+# alternatively: use the command provided in the service file
 ```
 
---master_gen_keys will create the CA crt and private key. This is the very first thing you need.
+Ensure that external clients can reach port 1666.
 
---gen_auth_token=$USER creates a token based on the private key that allows $USER to self-register
+To provide tokens, run `rufs-master-bolt --var_storage /var/lib/rufs/ --get-auth-token xyz` and send the token to user `xyz`.
 
---register_token sends that token to the master, which will sign your pubkey and give you a certificate
+## Setup client
 
-you can leave out the openssl commands and just not pass --master_cert, as it'll by default read from the masters directory
+* Ensure that `user_allow_other` is set in `/etc/fuse.conf` and that `/etc/fuse.conf` is readable by the `rufs` process user.
+* Edit `/etc/systemd/system/rufs-client.service` to set the correct address for the master connection
+* Download the CA-certificate from the master and put it in `/srv/rufs/rufs-master-ca.crt`.
+
+```
+mkdir -p /srv/rufs/{others,share}
+useradd rufs
+chown -R rufs:rufs /srv/rufs/
+systemctl enable rufs-client
+systemctl start rufs-client
+# alternatively: use the command provided in the service file
+```
+
+Ensure that external clients can reach port 1667.
+
+You can now add files to `/srv/rufs/share/` such that they can be indexed and be made available to the clients connected to the master.
 
 ## Technical design
 
