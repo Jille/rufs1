@@ -38,6 +38,7 @@ To provide tokens, run `rufs-master-bolt --var_storage /var/lib/rufs/ --get-auth
 * Ensure that `user_allow_other` is set in `/etc/fuse.conf` and that `/etc/fuse.conf` is readable by the `rufs` process user.
 * Edit `/etc/systemd/system/rufs-client.service` to set the correct address for the master connection
 * Download the CA-certificate from the master and put it in `/srv/rufs/rufs-master-ca.crt`.
+* Acquire a token from the master
 
 ```
 make rufs
@@ -45,6 +46,7 @@ mkdir -p /srv/rufs/{others,share}
 mv ./rufs /srv/rufs/
 useradd rufs
 chown -R rufs:rufs /srv/rufs/
+/srv/rufs/rufs --master=rufs.master.tld:1666 --master_cert=/srv/rufs/rufs-master-ca.crt --register_token=TOKEN --user=myuser
 systemctl enable rufs-client
 systemctl start rufs-client
 # alternatively: use the command provided in the service file
