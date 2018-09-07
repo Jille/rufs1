@@ -20,6 +20,7 @@ RUFS provides a FUSE mount which will show all files shared by all participants.
 make rufs_master
 useradd rufs-master
 mkdir /var/lib/rufs/
+mv ./rufs-master-bolt /usr/local/bin/
 chown rufs-master:nogroup /var/lib/rufs
 ./rufs --var_storage /var/lib/rufs/ --master_gen_keys
 # publish the CA certificate stored in /var/lib/rufs/master/ca.crt somewhere for the clients
@@ -39,7 +40,9 @@ To provide tokens, run `rufs-master-bolt --var_storage /var/lib/rufs/ --get-auth
 * Download the CA-certificate from the master and put it in `/srv/rufs/rufs-master-ca.crt`.
 
 ```
+make rufs
 mkdir -p /srv/rufs/{others,share}
+mv ./rufs /srv/rufs/
 useradd rufs
 chown -R rufs:rufs /srv/rufs/
 systemctl enable rufs-client

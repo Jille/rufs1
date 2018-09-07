@@ -1,0 +1,12 @@
+[Unit]
+Description=RUFS master process
+After=network.target
+
+[Service]
+Type=simple
+User=rufs-master
+Group=nogroup
+ExecStart=/usr/local/bin/rufs-master-bolt -var_storage /var/lib/rufs -local_cache_dir /var/cache/rufs -master_port 1666
+
+[Install]
+WantedBy=multi-user.target
