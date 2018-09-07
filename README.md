@@ -85,5 +85,4 @@ that hash and read it from a arbitrary one. (This will be improved later.)
 * Remove need to manually get server public key
 * Don't do chunked Read RPCs. Switch to requesting streams.
   * Store this locally and try to serve that too.
-* Switch server.go fileCache / hashToPath / hashcache.dat to Bolt
 * Virtual directories (where people can 'symlink' to their own stuff)
