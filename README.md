@@ -19,7 +19,7 @@ Preparations for both master and client can be found in `vagrant-bootstrap.sh` (
 
 ## Setup master
 
-Refer to the `master) case in `vagrant-init.sh` case for the exact commands to run (assumes root).
+Refer to the `master)` case in `vagrant-init.sh` case for the exact commands to run (assumes root).
 
 Ensure that external clients can reach port 1666.
 
