@@ -4,6 +4,7 @@
 Vagrant.configure("2") do |config|
   config.vm.box = "generic/debian9"
   config.vm.provision "shell", path: "vagrant-bootstrap.sh"
+  config.vm.provision "shell", :inline => "rm /etc/localtime && ln -s /usr/share/zoneinfo/Europe/Amsterdam /etc/localtime", run: "always"
 
   config.vm.define "rufs-master" do |rufsmaster|
     rufsmaster.vm.hostname = "rufs-master"

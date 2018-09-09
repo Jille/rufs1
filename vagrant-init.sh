@@ -36,7 +36,7 @@ client)
     cp /public/ca.crt /srv/rufs/rufs-master-ca.crt
     mv ./rufs /srv/rufs/
     useradd rufs
-    /srv/rufs/rufs --master="${ipMASTER}:${portMASTER}" --master_cert=/srv/rufs/rufs-master-ca.crt --register_token="${TOKEN}" --user=rufsclient
+    /srv/rufs/rufs --var_storage /srv/rufs/ --master="${ipMASTER}:${portMASTER}" --master_cert=/srv/rufs/rufs-master-ca.crt --register_token="${TOKEN}" --user=rufsclient
     sed -i "s/master.rufs.tld/${ipMASTER}/" systemd/rufs-client.service
     sed -i "s/myuser/rufsclient/" systemd/rufs-client.service
     sed -i "s/myuser/vagrant/" systemd/rufs-client.service
