@@ -6,7 +6,7 @@ After=network.target
 Type=simple
 User=rufs
 Group=nogroup
-ExecStart=/srv/rufs/rufs --master=master.rufs.tld:1666 --master_cert=/srv/rufs/rufs-master-ca.crt --user=myuser --mountpoint=/srv/rufs/others --share=/srv/rufs/share --allow_users=myuser
+ExecStart=/srv/rufs/rufs --var_storage=/srv/rufs --master=master.rufs.tld:1666 --master_cert=/srv/rufs/rufs-master-ca.crt --user=myuser --mountpoint=/srv/rufs/others --share=/srv/rufs/share --allow_users=myuser
 
 [Install]
 WantedBy=multi-user.target
