@@ -68,3 +68,4 @@ that hash and read it from a arbitrary one. (This will be improved later.)
 * Don't do chunked Read RPCs. Switch to requesting streams.
   * Store this locally and try to serve that too.
 * Virtual directories (where people can 'symlink' to their own stuff)
+* Maybe do not list unpingable clients in fuse (or I/O-error the directory listings)
