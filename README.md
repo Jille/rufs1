@@ -62,10 +62,4 @@ that hash and read it from a arbitrary one. (This will be improved later.)
 
 ## TODO
 
-* Share multiple paths as multiple shares
-* Multi-master support?
-* Remove need to manually get server public key
-* Don't do chunked Read RPCs. Switch to requesting streams.
-  * Store this locally and try to serve that too.
-* Virtual directories (where people can 'symlink' to their own stuff)
-* Maybe do not list unpingable clients in fuse (or I/O-error the directory listings)
+We've got [a list](https://github.com/mrngm/rufs/labels/TODO) on the issue tracker for that.
