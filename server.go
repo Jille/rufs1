@@ -27,7 +27,7 @@ var (
 	registerToken = flag.String("register_token", "", "Register with the master and get certificates")
 	masterCert    = flag.String("master_cert", "%rufs_var_storage%/master/ca.crt", "Path to ca file of the master")
 
-	fileCacheMtx sync.Mutex
+	fileCacheMtx sync.RWMutex
 	fileCache    = map[string]FileInfo{}
 	hashToPath   = map[string]map[string]void{}
 )
@@ -204,9 +204,9 @@ func (s *Server) fsScanner(done <-chan void) {
 				return
 			default:
 			}
-			fileCacheMtx.Lock()
+			fileCacheMtx.RLock()
 			fcCopy := fileCache
-			fileCacheMtx.Unlock()
+			fileCacheMtx.RUnlock()
 			for fn, info := range fcCopy {
 				rpc <- SetFileRequest{
 					Path: fn,
@@ -239,11 +239,13 @@ func (s *Server) fsScanner(done <-chan void) {
 		}
 	}()
 	for {
-		walkMtx.Lock()
 		missing := map[string]bool{}
+		walkMtx.Lock()
+		fileCacheMtx.RLock()
 		for fn := range fileCache {
 			missing[fn] = true
 		}
+		fileCacheMtx.RUnlock()
 		filepath.Walk(*share, func(path string, info os.FileInfo, err error) error {
 			if err != nil {
 				return nil
@@ -262,13 +264,13 @@ func (s *Server) fsScanner(done <-chan void) {
 			if info.Mode()&os.ModeType > 0 {
 				return nil
 			}
-			fileCacheMtx.Lock()
+			fileCacheMtx.RLock()
 			if f, ok := fileCache[rel]; ok && f.Size == info.Size() && f.Mtime == info.ModTime() {
-				fileCacheMtx.Unlock()
+				fileCacheMtx.RUnlock()
 				delete(missing, rel)
 				return nil
 			}
-			fileCacheMtx.Unlock()
+			fileCacheMtx.RUnlock()
 			var hash string
 			if f, ok := cacheSeed[rel]; ok && f.Size == info.Size() && f.Mtime == info.ModTime() {
 				hash = f.Hash
