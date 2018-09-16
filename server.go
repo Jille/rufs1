@@ -27,7 +27,7 @@ var (
 	registerToken = flag.String("register_token", "", "Register with the master and get certificates")
 	masterCert    = flag.String("master_cert", "%rufs_var_storage%/master/ca.crt", "Path to ca file of the master")
 
-	fileCacheMtx sync.RWMutex
+	fileCacheMtx sync.Mutex
 	fileCache    = map[string]FileInfo{}
 	hashToPath   = map[string]map[string]void{}
 )
@@ -204,9 +204,12 @@ func (s *Server) fsScanner(done <-chan void) {
 				return
 			default:
 			}
-			fileCacheMtx.RLock()
-			fcCopy := fileCache
-			fileCacheMtx.RUnlock()
+			fileCacheMtx.Lock()
+			fcCopy := make(map[string]FileInfo)
+			for key, value := range fileCache {
+				fcCopy[key] = value
+			}
+			fileCacheMtx.Unlock()
 			for fn, info := range fcCopy {
 				rpc <- SetFileRequest{
 					Path: fn,
@@ -222,30 +225,44 @@ func (s *Server) fsScanner(done <-chan void) {
 		log.Printf("Couldn't load hashcache.dat: %v", err)
 	}
 	fastPass := (cacheSeed != nil)
-	firstPassDone := false
+
+	// Additionally autosave the hash cache each minute
+	autosaveStop := false
+	autosavePause := fastPass
+	var autosaveMtx sync.Mutex // Lock protects autosaveStop and autosavePause
 	go func() {
-		for range time.Tick(time.Minute) {
-			if firstPassDone {
-				return
+		// Returns true if goroutine should stop
+		autosaveFunc := func() bool {
+			autosaveMtx.Lock()
+			defer autosaveMtx.Unlock()
+			if autosaveStop {
+				return true
 			}
-			if fastPass {
-				continue
+			if autosavePause {
+				return false
 			}
 			fileCacheMtx.Lock()
+			defer fileCacheMtx.Unlock()
 			if err := s.writeHashCache(fileCache); err != nil {
 				log.Printf("Couldn't write hashcache.dat: %v", err)
 			}
-			fileCacheMtx.Unlock()
+			return false
+		}
+		for range time.Tick(time.Minute) {
+			if autosaveFunc() {
+				return
+			}
 		}
 	}()
+
 	for {
 		missing := map[string]bool{}
 		walkMtx.Lock()
-		fileCacheMtx.RLock()
+		fileCacheMtx.Lock()
 		for fn := range fileCache {
 			missing[fn] = true
 		}
-		fileCacheMtx.RUnlock()
+		fileCacheMtx.Unlock()
 		filepath.Walk(*share, func(path string, info os.FileInfo, err error) error {
 			if err != nil {
 				return nil
@@ -264,13 +281,13 @@ func (s *Server) fsScanner(done <-chan void) {
 			if info.Mode()&os.ModeType > 0 {
 				return nil
 			}
-			fileCacheMtx.RLock()
+			fileCacheMtx.Lock()
 			if f, ok := fileCache[rel]; ok && f.Size == info.Size() && f.Mtime == info.ModTime() {
-				fileCacheMtx.RUnlock()
+				fileCacheMtx.Unlock()
 				delete(missing, rel)
 				return nil
 			}
-			fileCacheMtx.RUnlock()
+			fileCacheMtx.Unlock()
 			var hash string
 			if f, ok := cacheSeed[rel]; ok && f.Size == info.Size() && f.Mtime == info.ModTime() {
 				hash = f.Hash
@@ -304,14 +321,24 @@ func (s *Server) fsScanner(done <-chan void) {
 		walkMtx.Unlock()
 		if fastPass {
 			fastPass = false
+			autosaveMtx.Lock()
+			autosavePause = false
+			autosaveMtx.Unlock()
 			continue
 		}
+
 		fileCacheMtx.Lock()
 		if err := s.writeHashCache(fileCache); err != nil {
 			log.Printf("Couldn't write hashcache.dat: %v", err)
 		}
 		fileCacheMtx.Unlock()
-		firstPassDone = true
+
+		// First pass done, kill autosaver if present
+		autosaveMtx.Lock()
+		autosaveStop = true
+		autosaveMtx.Unlock()
+
+		// Wait one minute (or exit if interrupted)
 		select {
 		case <-done:
 			return
