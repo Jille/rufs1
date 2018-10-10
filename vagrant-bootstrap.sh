@@ -16,6 +16,6 @@ export GOPATH=/home/vagrant/go
 export PATH=/home/vagrant/go/bin/:${PATH}
 go get github.com/golang/dep/cmd/dep
 cd /home/vagrant/go/src/
-git clone https://github.com/mrngm/rufs
+git clone https://github.com/Jille/rufs
 cd rufs
 dep ensure -v

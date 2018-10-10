@@ -1,6 +1,6 @@
 # RUFS
 
-[![Build Status](https://travis-ci.org/mrngm/rufs.svg?branch=master)](https://travis-ci.org/mrngm/rufs)
+[![Build Status](https://travis-ci.org/Jille/rufs.svg?branch=master)](https://travis-ci.org/Jille/rufs)
 
 RUFS is a filesystem that makes it easy to conveniently shares files with
 others. You need to run one master job which ties everything together and
@@ -62,4 +62,4 @@ that hash and read it from a arbitrary one. (This will be improved later.)
 
 ## TODO
 
-We've got [a list](https://github.com/mrngm/rufs/labels/TODO) on the issue tracker for that.
+We've got [a list](https://github.com/Jille/rufs/labels/TODO) on the issue tracker for that.
