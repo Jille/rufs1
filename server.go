@@ -205,7 +205,10 @@ func (s *Server) fsScanner(done <-chan void) {
 			default:
 			}
 			fileCacheMtx.Lock()
-			fcCopy := fileCache
+			fcCopy := make(map[string]FileInfo)
+			for key, value := range fileCache {
+				fcCopy[key] = value
+			}
 			fileCacheMtx.Unlock()
 			for fn, info := range fcCopy {
 				rpc <- SetFileRequest{
@@ -222,28 +225,44 @@ func (s *Server) fsScanner(done <-chan void) {
 		log.Printf("Couldn't load hashcache.dat: %v", err)
 	}
 	fastPass := (cacheSeed != nil)
-	firstPassDone := false
+
+	// Additionally autosave the hash cache each minute
+	autosaveStop := false
+	autosavePause := fastPass
+	var autosaveMtx sync.Mutex // Lock protects autosaveStop and autosavePause
 	go func() {
-		for range time.Tick(time.Minute) {
-			if firstPassDone {
-				return
+		// Returns true if goroutine should stop
+		autosaveFunc := func() bool {
+			autosaveMtx.Lock()
+			defer autosaveMtx.Unlock()
+			if autosaveStop {
+				return true
 			}
-			if fastPass {
-				continue
+			if autosavePause {
+				return false
 			}
 			fileCacheMtx.Lock()
+			defer fileCacheMtx.Unlock()
 			if err := s.writeHashCache(fileCache); err != nil {
 				log.Printf("Couldn't write hashcache.dat: %v", err)
 			}
-			fileCacheMtx.Unlock()
+			return false
+		}
+		for range time.Tick(time.Minute) {
+			if autosaveFunc() {
+				return
+			}
 		}
 	}()
+
 	for {
-		walkMtx.Lock()
 		missing := map[string]bool{}
+		walkMtx.Lock()
+		fileCacheMtx.Lock()
 		for fn := range fileCache {
 			missing[fn] = true
 		}
+		fileCacheMtx.Unlock()
 		filepath.Walk(*share, func(path string, info os.FileInfo, err error) error {
 			if err != nil {
 				return nil
@@ -302,14 +321,24 @@ func (s *Server) fsScanner(done <-chan void) {
 		walkMtx.Unlock()
 		if fastPass {
 			fastPass = false
+			autosaveMtx.Lock()
+			autosavePause = false
+			autosaveMtx.Unlock()
 			continue
 		}
+
 		fileCacheMtx.Lock()
 		if err := s.writeHashCache(fileCache); err != nil {
 			log.Printf("Couldn't write hashcache.dat: %v", err)
 		}
 		fileCacheMtx.Unlock()
-		firstPassDone = true
+
+		// First pass done, kill autosaver if present
+		autosaveMtx.Lock()
+		autosaveStop = true
+		autosaveMtx.Unlock()
+
+		// Wait one minute (or exit if interrupted)
 		select {
 		case <-done:
 			return

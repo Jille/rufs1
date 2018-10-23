@@ -1,6 +1,6 @@
 # RUFS
 
-[![Build Status](https://travis-ci.org/Jille/rufs.png)](https://travis-ci.org/Jille/rufs)
+[![Build Status](https://travis-ci.org/Jille/rufs.svg?branch=master)](https://travis-ci.org/Jille/rufs)
 
 RUFS is a filesystem that makes it easy to conveniently shares files with
 others. You need to run one master job which ties everything together and
@@ -9,37 +9,34 @@ they have.
 
 RUFS provides a FUSE mount which will show all files shared by all participants.
 
-## Setup for dummies
+## Prerequisites
 
-```
-sudo apt-get install golang-1.6
-sudo update-alternatives --install /usr/bin/go go /usr/lib/go-1.6/bin/go 100
-sudo update-alternatives --install /usr/bin/gofmt gofmt /usr/lib/go-1.6/bin/gofmt 100
-cd
-mkdir go
-export GOPATH=`pwd`/go
-go get github.com/golang/dep/cmd/dep
-cd go/src
-git clone https://github.com/Jille/rufs.git
-cd rufs
-$GOPATH/bin/dep ensure
-make
-./rufs --master_gen_keys
-AUTH_TOKEN=`./rufs --get_auth_token=$USER`
-screen -d -m -S rufsmaster ./rufs --master_port=1337
-openssl s_client -showcerts -connect localhost:1337 < /dev/null 2>/dev/null | openssl x509 -outform PEM > ~/.rufs/ca.crt
-./rufs --master=localhost:1337 --master_cert=$HOME/.rufs/ca.crt --register_token=$AUTH_TOKEN --user=$USER
-mkdir ~/rufs-mnt
-screen -d -m -S rufs ./rufs --master=localhost:1337 --master_cert=$HOME/.rufs/ca.crt --user=$USER --mountpoint=$HOME/rufs-mnt --share=$HOME/Pictures
-```
+* golang >= 1.9
+* `dep` (`go get github.com/golang/dep/cmd/dep`)
+* `fuse`
 
---master_gen_keys will create the CA crt and private key. This is the very first thing you need.
+Preparations for both master and client can be found in `vagrant-bootstrap.sh` (assumes root).
 
---gen_auth_token=$USER creates a token based on the private key that allows $USER to self-register
+## Setup master
 
---register_token sends that token to the master, which will sign your pubkey and give you a certificate
+Refer to the `master)` case in `vagrant-init.sh` case for the exact commands to run (assumes root).
 
-you can leave out the openssl commands and just not pass --master_cert, as it'll by default read from the masters directory
+Ensure that external clients can reach port 1666.
+
+To provide tokens, run `rufs-master-bolt --var_storage /var/lib/rufs/ --get-auth-token xyz` and send the token to user `xyz`. In `vagrant-init.sh` this is done for the client `rufs-client`.
+
+## Setup client
+
+Refer to `client)` case in `vagrant-init.sh` for the exact commands to run (assumes root).
+
+* Ensure that `user_allow_other` is set in `/etc/fuse.conf` and that `/etc/fuse.conf` is readable by the `rufs` process user.
+* Edit `/etc/systemd/system/rufs-client.service` to set the correct address for the master connection
+* Download the CA-certificate from the master and put it in `/srv/rufs/rufs-master-ca.crt`.
+* Acquire a token from the master
+
+Ensure that external clients can reach port 1667.
+
+You can now add files to `/srv/rufs/share/` such that they can be indexed and be made available to the clients connected to the master.
 
 ## Technical design
 
@@ -65,10 +62,4 @@ that hash and read it from a arbitrary one. (This will be improved later.)
 
 ## TODO
 
-* Share multiple paths as multiple shares
-* Multi-master support?
-* Remove need to manually get server public key
-* Don't do chunked Read RPCs. Switch to requesting streams.
-  * Store this locally and try to serve that too.
-* Switch server.go fileCache / hashToPath / hashcache.dat to Bolt
-* Virtual directories (where people can 'symlink' to their own stuff)
+We've got [a list](https://github.com/Jille/rufs/labels/TODO) on the issue tracker for that.

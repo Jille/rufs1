@@ -3,49 +3,75 @@
 
 [[projects]]
   branch = "master"
+  digest = "1:3e83fafc54c966c085f2909537a26732447c72d21d1f60a5ce45239fbc2b06b7"
   name = "bazil.org/fuse"
-  packages = [".","fs","fuseutil"]
+  packages = [
+    ".",
+    "fs",
+    "fuseutil",
+  ]
+  pruneopts = ""
   revision = "371fbbdaa8987b715bdd21d6adc4c9b20155f748"
 
 [[projects]]
+  digest = "1:ed112122ed4a920d944cc99b9d00b0441c11685939c28462c719488d36fe29aa"
   name = "github.com/boltdb/bolt"
   packages = ["."]
+  pruneopts = ""
   revision = "2f1ce7a837dcb8da3ec595b1dac9d0632f0f99e8"
   version = "v1.3.1"
 
 [[projects]]
   branch = "master"
+  digest = "1:1d8a1b508ff6f0ccf93bae00bfb5c8f7ebfa609dd6b3facac00aee25d7552234"
   name = "github.com/dustin/go-humanize"
   packages = ["."]
+  pruneopts = ""
   revision = "259d2a102b871d17f30e3cd9881a642961a1e486"
 
 [[projects]]
   branch = "master"
+  digest = "1:9ead1e1ebaabf3d67f320293ad8c45feaf59b8189197b4d4f479bd7c7f1252f4"
   name = "github.com/goftp/server"
   packages = ["."]
+  pruneopts = ""
   revision = "e529ec1c1e668ce9a137da44ff3f36c2d09f174a"
 
 [[projects]]
+  digest = "1:1cc12f4618ce8d71ca28ef3708f4e98e1318ab6f06ecfffb6781b893f271c89c"
   name = "github.com/mattn/go-sqlite3"
   packages = ["."]
+  pruneopts = ""
   revision = "ca5e3819723d8eeaf170ad510e7da1d6d2e94a08"
   version = "v1.2.0"
 
 [[projects]]
   branch = "master"
+  digest = "1:35171304d8332a0cfac5f3bd9222467f036732ddde75c65278b16f65216e03ed"
   name = "golang.org/x/net"
   packages = ["context"]
+  pruneopts = ""
   revision = "1c05540f6879653db88113bc4a2b70aec4bd491f"
 
 [[projects]]
   branch = "master"
+  digest = "1:b0d2491b49d26e8d8044ad7ff749347600f77a8c04e8c4a6ecb0af42d374cf89"
   name = "golang.org/x/sys"
   packages = ["unix"]
+  pruneopts = ""
   revision = "07c182904dbd53199946ba614a412c61d3c548f5"
 
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "730adf3e9c9d5009cd22123158c5f2c7554abc91bdecd00efab31d480f6768cd"
+  input-imports = [
+    "bazil.org/fuse",
+    "bazil.org/fuse/fs",
+    "github.com/boltdb/bolt",
+    "github.com/dustin/go-humanize",
+    "github.com/goftp/server",
+    "github.com/mattn/go-sqlite3",
+    "golang.org/x/net/context",
+  ]
   solver-name = "gps-cdcl"
   solver-version = 1
