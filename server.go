@@ -263,11 +263,19 @@ func (s *Server) fsScanner(done <-chan void) {
 			missing[fn] = true
 		}
 		fileCacheMtx.Unlock()
+
+		loglines := 0
+		show_loglines := 50
 		filepath.Walk(*share, func(path string, info os.FileInfo, err error) error {
 			if err != nil {
 				return nil
 			}
-			fmt.Printf("%s (%v, %v)\n", path, info, err)
+
+			if loglines < show_loglines {
+				fmt.Printf("Indexed file: %s (%v, %v)\n", path, info, err)
+			}
+			loglines += 1
+
 			rel, err := filepath.Rel(*share, path)
 			if err != nil {
 				panic(err)
@@ -311,6 +319,10 @@ func (s *Server) fsScanner(done <-chan void) {
 			}
 			return nil
 		})
+		if loglines > show_loglines {
+			fmt.Printf("Indexed file: [%v indexed files omitted]\n", loglines-show_loglines)
+		}
+
 		cacheSeed = nil
 		for fn := range missing {
 			rpc <- SetFileRequest{
