@@ -99,7 +99,7 @@ func (m *Scanner) set(path string, fi *common.FileInfo) {
 
 func (m *Scanner) Run(ctx context.Context) {
 	m.fastPass()
-	m.normalPassWithIntermediateAutoSaving()
+	m.normalPassWithIntermediateAutoSaving(ctx)
 	for {
 		m.save()
 		select {
@@ -135,14 +135,14 @@ func (m *Scanner) save() {
 	m.fileCacheMtx.Unlock()
 }
 
-func (m *Scanner) normalPassWithIntermediateAutoSaving() {
-	done := make(chan void)
+func (m *Scanner) normalPassWithIntermediateAutoSaving(ctx context.Context) {
+	ctx, cancel := context.WithCancel(ctx)
 	autoSaverDied := make(chan void)
 	go func() {
 		defer close(autoSaverDied)
 		for {
 			select {
-			case <-done:
+			case <-ctx.Done():
 				return
 			case <-time.After(time.Minute):
 				m.save()
@@ -150,7 +150,7 @@ func (m *Scanner) normalPassWithIntermediateAutoSaving() {
 		}
 	}()
 	m.normalPass()
-	close(done)
+	cancel()
 	<-autoSaverDied
 }
 
