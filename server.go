@@ -109,7 +109,9 @@ func (s *Server) Setup() error {
 		}
 		return nil
 	}
-	signin(s.master)
+	if err := signin(s.master); err != nil {
+		return err
+	}
 	s.master.SetReconnectCallback(signin)
 
 	return nil
