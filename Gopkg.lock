@@ -14,6 +14,22 @@
   revision = "371fbbdaa8987b715bdd21d6adc4c9b20155f748"
 
 [[projects]]
+  branch = "master"
+  digest = "1:669ca49f7316753c72eba5150430b3dd5017b98cc729a63e1f205329930218ce"
+  name = "github.com/Jille/dfr"
+  packages = ["."]
+  pruneopts = ""
+  revision = "4d418959800079e2d1eb74f49eca7243f6bc384e"
+
+[[projects]]
+  branch = "master"
+  digest = "1:64ca0ef41ea57797eb6119b572ed6944db8f783f6559327a4db5db0638f41d52"
+  name = "github.com/Jille/errchain"
+  packages = ["."]
+  pruneopts = ""
+  revision = "c62feead6f25113e20833bf90960ba6ec83f2eac"
+
+[[projects]]
   digest = "1:ed112122ed4a920d944cc99b9d00b0441c11685939c28462c719488d36fe29aa"
   name = "github.com/boltdb/bolt"
   packages = ["."]
@@ -67,6 +83,7 @@
   input-imports = [
     "bazil.org/fuse",
     "bazil.org/fuse/fs",
+    "github.com/Jille/dfr",
     "github.com/boltdb/bolt",
     "github.com/dustin/go-humanize",
     "github.com/goftp/server",

@@ -8,6 +8,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"github.com/Jille/dfr"
 	"io"
 	"io/ioutil"
 	"log"
@@ -281,13 +282,15 @@ func (s *Server) fsScanner(done <-chan void) {
 			if info.Mode()&os.ModeType > 0 {
 				return nil
 			}
+			d := dfr.D{}
+			defer d.Run(nil)
 			fileCacheMtx.Lock()
+			unlock := d.Add(fileCacheMtx.Unlock)
 			if f, ok := fileCache[rel]; ok && f.Size == info.Size() && f.Mtime == info.ModTime() {
-				fileCacheMtx.Unlock()
 				delete(missing, rel)
 				return nil
 			}
-			fileCacheMtx.Unlock()
+			unlock(true)
 			var hash string
 			if f, ok := cacheSeed[rel]; ok && f.Size == info.Size() && f.Mtime == info.ModTime() {
 				hash = f.Hash
