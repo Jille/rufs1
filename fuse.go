@@ -72,7 +72,7 @@ func (f *FuseMnt) Setup() (retErr error) {
 	return nil
 }
 
-func (f *FuseMnt) Run(done <-chan void) (retErr error) {
+func (f *FuseMnt) Run(ctx context.Context) (retErr error) {
 	fuse.Debug = func(msg interface{}) { fmt.Println(msg) }
 	options := []fuse.MountOption{
 		fuse.FSName("rufs"),
@@ -89,7 +89,7 @@ func (f *FuseMnt) Run(done <-chan void) (retErr error) {
 		return err
 	}
 	go func() {
-		<-done
+		<-ctx.Done()
 		select {
 		case <-conn.Ready:
 			if conn.MountError != nil {

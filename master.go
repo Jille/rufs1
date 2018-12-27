@@ -10,6 +10,8 @@ import (
 	"net/rpc"
 	"os"
 	"strings"
+
+	"golang.org/x/net/context"
 )
 
 type Peer struct {
@@ -70,9 +72,9 @@ func (m *Master) Setup() error {
 	return nil
 }
 
-func (m *Master) Run(done <-chan void) error {
+func (m *Master) Run(ctx context.Context) error {
 	go func() {
-		<-done
+		<-ctx.Done()
 		m.sock.Close()
 	}()
 	for {

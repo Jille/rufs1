@@ -10,6 +10,8 @@ import (
 	"path/filepath"
 	"strings"
 	"syscall"
+
+	"golang.org/x/net/context"
 )
 
 func init() {
@@ -52,7 +54,7 @@ func registerServerModule(f func(s *Server) (module, error)) {
 
 type module interface {
 	Setup() error
-	Run(done <-chan void) error
+	Run(ctx context.Context) error
 }
 
 func main() {
@@ -66,7 +68,7 @@ func main() {
 	}
 
 	ret := make(chan error, 1)
-	done := make(chan void)
+	ctx, cancel := context.WithCancel(context.Background())
 
 	mods := []module{}
 
@@ -108,7 +110,7 @@ func main() {
 	}
 	for _, m := range mods {
 		go func(m module) {
-			ret <- m.Run(done)
+			ret <- m.Run(ctx)
 		}(m)
 	}
 	log.Printf("Launched %d modules...", len(mods))
@@ -119,10 +121,10 @@ func main() {
 	select {
 	case <-sigch:
 		signal.Stop(sigch)
-		close(done)
+		cancel()
 		err = <-ret
 	case err = <-ret:
-		close(done)
+		cancel()
 	}
 	ec := 0
 	for i := len(mods) - 1; i >= 0; i-- {
