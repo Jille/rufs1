@@ -7,6 +7,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 
@@ -40,8 +41,12 @@ func New(baseDir, cacheDir string) *Scanner {
 	}
 }
 
+func (m *Scanner) cacheFileName() string {
+	return filepath.Join(m.cacheDir, fmt.Sprintf("hashcache-%s.dat", strings.Replace(m.baseDir, "/", "-", -1)))
+}
+
 func (m *Scanner) readHashCache() (map[string]common.FileInfo, error) {
-	fh, err := os.Open(filepath.Join(m.cacheDir, "hashcache.dat"))
+	fh, err := os.Open(m.cacheFileName())
 	if err != nil {
 		return nil, err
 	}
@@ -60,7 +65,7 @@ func (m *Scanner) readHashCache() (map[string]common.FileInfo, error) {
 }
 
 func (m *Scanner) writeHashCache(c map[string]common.FileInfo) error {
-	fh, err := os.Create(filepath.Join(m.cacheDir, "hashcache.dat.new"))
+	fh, err := os.Create(m.cacheFileName()+".new")
 	if err != nil {
 		return err
 	}
@@ -72,7 +77,7 @@ func (m *Scanner) writeHashCache(c map[string]common.FileInfo) error {
 	if err != nil {
 		return err
 	}
-	return os.Rename(filepath.Join(m.cacheDir, "hashcache.dat.new"), filepath.Join(m.cacheDir, "hashcache.dat"))
+	return os.Rename(m.cacheFileName()+".new", m.cacheFileName())
 }
 
 func (m *Scanner) set(path string, fi *common.FileInfo) {

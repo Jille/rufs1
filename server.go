@@ -12,7 +12,9 @@ import (
 	"net"
 	"net/rpc"
 	"os"
+	"path"
 	"path/filepath"
+	"strings"
 	"sync"
 
 	"github.com/Jille/rufs/common"
@@ -33,7 +35,7 @@ type Server struct {
 	masterAddr         string
 	master             *RUFSMasterClient
 	sock               net.Listener
-	share              string
+	shares             map[string]string
 	ca                 *x509.Certificate
 	cert               *tls.Certificate
 	hashToPathMtx      sync.Mutex
@@ -60,9 +62,29 @@ func newServer(master string) (*Server, error) {
 		}
 		cert = &crt
 	}
+	shares := map[string]string{}
+	if *share != "" {
+		sharesflagitems := strings.Split(*share, ",")
+		if len(sharesflagitems) > 1 {
+			for _, s := range sharesflagitems {
+				sp := strings.SplitN(s, "=", 2)
+				if len(sp) == 2 {
+					shares[sp[0]] = getPath(sp[1])
+				} else {
+					basename := path.Base(s)
+					shares[basename] = getPath(s)
+				}
+			}
+			if len(shares) != len(sharesflagitems) {
+				return nil, errors.New("Flag --share has multiple shares with the same name")
+			}
+		} else {
+			shares[""] = sharesflagitems[0]
+		}
+	}
 	return &Server{
 		masterAddr: master,
-		share:      getPath(*share),
+		shares:     shares,
 		ca:         ca,
 		cert:       cert,
 		hashToPath: map[string]map[string]void{},
@@ -122,19 +144,24 @@ func (s *Server) Run(ctx context.Context) error {
 	defer s.master.Close()
 	defer s.sock.Close()
 
-	if len(*share) >= 0 {
+	if len(s.shares) > 0 {
 		s.setFileRequestChan = s.startSetFileThreads()
-		defer close(s.setFileRequestChan)
-		mc := filescanner.New(*share, getPath(*varStorage))
-		ectx, cancel := context.WithCancel(ctx)
-		mc.ContinuousExport(ectx, s.SetFile)
-		s.master.AppendReconnectCallback(func(c *RUFSMasterClient) error {
-			cancel()
-			ectx, cancel = context.WithCancel(ctx)
-			mc.ContinuousExport(ectx, s.SetFile)
-			return nil
-		})
-		go mc.Run(ctx)
+		for share, baseDir := range s.shares {
+			share := share
+			setFile := func(ctx context.Context, path string, info *common.FileInfo, old *common.FileInfo) {
+				s.SetFile(ctx, share, path, info, old)
+			}
+			mc := filescanner.New(baseDir, getPath(*varStorage))
+			ectx, cancel := context.WithCancel(ctx)
+			mc.ContinuousExport(ectx, setFile)
+			s.master.AppendReconnectCallback(func(c *RUFSMasterClient) error {
+				cancel()
+				ectx, cancel = context.WithCancel(ctx)
+				mc.ContinuousExport(ectx, setFile)
+				return nil
+			})
+			go mc.Run(ctx)
+		}
 	}
 	<-ctx.Done()
 	return nil
@@ -147,15 +174,6 @@ func (s *Server) startSetFileThreads() chan SetFileRequest {
 			for req := range rpc {
 				if err := s.master.SetFile(req); err != nil {
 					log.Printf("SetFile(%+v) failed: %v", req, err)
-				} else {
-					s.hashToPathMtx.Lock()
-					if req.Info != nil {
-						if _, ok := s.hashToPath[req.Info.Hash]; !ok {
-							s.hashToPath[req.Info.Hash] = map[string]void{}
-						}
-						s.hashToPath[req.Info.Hash][req.Path] = void{}
-					}
-					s.hashToPathMtx.Unlock()
 				}
 			}
 		}()
@@ -163,12 +181,25 @@ func (s *Server) startSetFileThreads() chan SetFileRequest {
 	return rpc
 }
 
-func (s *Server) SetFile(ctx context.Context, path string, info *common.FileInfo, old *common.FileInfo) {
+func (s *Server) SetFile(ctx context.Context, share, path string, info *common.FileInfo, old *common.FileInfo) {
+	sharePlusPath := share + "\x00" + path
+	s.hashToPathMtx.Lock()
 	if old != nil {
-		delete(s.hashToPath[old.Hash], path)
+		delete(s.hashToPath[old.Hash], sharePlusPath)
+		if len(s.hashToPath[old.Hash]) == 0 {
+			delete(s.hashToPath, old.Hash)
+		}
 	}
+	if info != nil {
+		if _, ok := s.hashToPath[info.Hash]; !ok {
+			s.hashToPath[info.Hash] = map[string]void{}
+		}
+		s.hashToPath[info.Hash][sharePlusPath] = void{}
+	}
+	s.hashToPathMtx.Unlock()
+
 	s.setFileRequestChan <- SetFileRequest{
-		Path: path,
+		Path: filepath.Join(share, path),
 		Info: info,
 	}
 }
@@ -189,13 +220,14 @@ func (s RUFSService) Read(q ReadRequest, r *ReadReply) (retErr error) {
 	s.server.hashToPathMtx.Lock()
 	paths, ok := s.server.hashToPath[q.Hash]
 	s.server.hashToPathMtx.Unlock()
-	if !ok {
+	if !ok || len(paths) == 0 {
 		return errors.New("ENOENT")
 	}
 	var file *os.File
 	var err error
 	for path := range paths {
-		file, err = os.Open(filepath.Join(*share, path))
+		sp := strings.Split(path, "\x00")
+		file, err = os.Open(filepath.Join(s.server.shares[sp[0]], sp[1]))
 		if err == nil {
 			defer file.Close()
 			break
