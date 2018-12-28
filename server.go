@@ -75,7 +75,7 @@ func newServer(master string) (*Server, error) {
 					shares[basename] = getPath(s)
 				}
 			}
-			if len(shares) != strings.Count(*share, ",")+1 {
+			if len(shares) != len(sharesflagitems) {
 				return nil, errors.New("Flag --share has multiple shares with the same name")
 			}
 		} else {
