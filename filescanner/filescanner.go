@@ -129,10 +129,10 @@ func (m *Scanner) fastPass() {
 
 func (m *Scanner) save() {
 	m.fileCacheMtx.Lock()
+	defer m.fileCacheMtx.Unlock()
 	if err := m.writeHashCache(m.fileCache); err != nil {
 		log.Printf("Couldn't write hashcache.dat: %v", err)
 	}
-	m.fileCacheMtx.Unlock()
 }
 
 func (m *Scanner) normalPassWithIntermediateAutoSaving(ctx context.Context) {

@@ -14,6 +14,17 @@
   revision = "371fbbdaa8987b715bdd21d6adc4c9b20155f748"
 
 [[projects]]
+  branch = "autoip"
+  digest = "1:d6589a01a1a88e8bf064331cd0e0e5f716bfe483742a0df8ae1d5feb77b77778"
+  name = "github.com/Jille/rufs"
+  packages = [
+    "common",
+    "filescanner",
+  ]
+  pruneopts = ""
+  revision = "0e9a334e5a1e5a10c8594a1ffbfdd1eb01e994c1"
+
+[[projects]]
   digest = "1:ed112122ed4a920d944cc99b9d00b0441c11685939c28462c719488d36fe29aa"
   name = "github.com/boltdb/bolt"
   packages = ["."]
@@ -67,6 +78,8 @@
   input-imports = [
     "bazil.org/fuse",
     "bazil.org/fuse/fs",
+    "github.com/Jille/rufs/common",
+    "github.com/Jille/rufs/filescanner",
     "github.com/boltdb/bolt",
     "github.com/dustin/go-humanize",
     "github.com/goftp/server",
