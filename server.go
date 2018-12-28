@@ -12,6 +12,7 @@ import (
 	"net"
 	"net/rpc"
 	"os"
+	"path"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -63,16 +64,22 @@ func newServer(master string) (*Server, error) {
 	}
 	shares := map[string]string{}
 	if *share != "" {
-		for _, s := range strings.Split(*share, ",") {
-			sp := strings.SplitN(s, "=", 2)
-			if len(sp) == 2 {
-				shares[sp[0]] = getPath(sp[1])
-			} else {
-				shares[""] = getPath(s)
+		sharesflagitems := strings.Split(*share, ",")
+		if len(sharesflagitems) > 1 {
+			for _, s := range sharesflagitems {
+				sp := strings.SplitN(s, "=", 2)
+				if len(sp) == 2 {
+					shares[sp[0]] = getPath(sp[1])
+				} else {
+					basename := path.Base(s)
+					shares[basename] = getPath(s)
+				}
 			}
-		}
-		if len(shares) != strings.Count(*share, ",")+1 {
-			return nil, errors.New("Flag --share seems has duplicate aliases")
+			if len(shares) != strings.Count(*share, ",")+1 {
+				return nil, errors.New("Flag --share has multiple shares with the same name")
+			}
+		} else {
+			shares[""] = sharesflagitems[0]
 		}
 	}
 	return &Server{
