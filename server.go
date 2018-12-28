@@ -1,10 +1,8 @@
 package main
 
 import (
-	"compress/gzip"
 	"crypto/tls"
 	"crypto/x509"
-	"encoding/gob"
 	"errors"
 	"flag"
 	"fmt"
@@ -16,7 +14,10 @@ import (
 	"os"
 	"path/filepath"
 	"sync"
-	"time"
+
+	"github.com/Jille/rufs/common"
+	"github.com/Jille/rufs/filescanner"
+	"golang.org/x/net/context"
 )
 
 var (
@@ -26,19 +27,18 @@ var (
 	user          = flag.String("user", "quis", "Who are you?")
 	registerToken = flag.String("register_token", "", "Register with the master and get certificates")
 	masterCert    = flag.String("master_cert", "%rufs_var_storage%/master/ca.crt", "Path to ca file of the master")
-
-	fileCacheMtx sync.Mutex
-	fileCache    = map[string]FileInfo{}
-	hashToPath   = map[string]map[string]void{}
 )
 
 type Server struct {
-	masterAddr string
-	master     *RUFSMasterClient
-	sock       net.Listener
-	share      string
-	ca         *x509.Certificate
-	cert       *tls.Certificate
+	masterAddr         string
+	master             *RUFSMasterClient
+	sock               net.Listener
+	share              string
+	ca                 *x509.Certificate
+	cert               *tls.Certificate
+	hashToPathMtx      sync.Mutex
+	hashToPath         map[string]map[string]void
+	setFileRequestChan chan SetFileRequest
 }
 
 func newServer(master string) (*Server, error) {
@@ -65,6 +65,7 @@ func newServer(master string) (*Server, error) {
 		share:      getPath(*share),
 		ca:         ca,
 		cert:       cert,
+		hashToPath: map[string]map[string]void{},
 	}, nil
 }
 
@@ -95,7 +96,7 @@ func (s *Server) Setup() error {
 	}
 
 	srv := rpc.NewServer()
-	srv.Register(RUFSService{})
+	srv.Register(RUFSService{s})
 	go srv.Accept(s.sock)
 
 	var addr string
@@ -121,231 +122,55 @@ func (s *Server) Run(done <-chan void) error {
 	defer s.master.Close()
 	defer s.sock.Close()
 
-	go s.fsScanner(done)
+	if len(*share) >= 0 {
+		s.setFileRequestChan = s.startSetFileThreads()
+		defer close(s.setFileRequestChan)
+		ctx := createContext(done)
+		mc := filescanner.New(*share, getPath(*varStorage))
+		ectx, cancel := context.WithCancel(ctx)
+		mc.ContinuousExport(ectx, s.SetFile)
+		s.master.AppendReconnectCallback(func(c *RUFSMasterClient) error {
+			cancel()
+			ectx, cancel = context.WithCancel(ctx)
+			mc.ContinuousExport(ectx, s.SetFile)
+			return nil
+		})
+		go mc.Run(ctx)
+	}
 	<-done
 	return nil
 }
 
-func (s *Server) readHashCache() (map[string]FileInfo, error) {
-	fh, err := os.Open(filepath.Join(getPath(*varStorage), "hashcache.dat"))
-	if err != nil {
-		return nil, err
-	}
-	defer fh.Close()
-	gz, err := gzip.NewReader(fh)
-	if err != nil {
-		return nil, err
-	}
-	defer gz.Close()
-	dec := gob.NewDecoder(gz)
-	var c map[string]FileInfo
-	if err := dec.Decode(&c); err != nil {
-		return nil, err
-	}
-	return c, nil
-}
-
-func (s *Server) writeHashCache(c map[string]FileInfo) error {
-	fh, err := os.Create(filepath.Join(getPath(*varStorage), "hashcache.dat.new"))
-	if err != nil {
-		return err
-	}
-	gz := gzip.NewWriter(fh)
-	enc := gob.NewEncoder(gz)
-	err = enc.Encode(&c)
-	gz.Close()
-	fh.Close()
-	if err != nil {
-		return err
-	}
-	return os.Rename(filepath.Join(getPath(*varStorage), "hashcache.dat.new"), filepath.Join(getPath(*varStorage), "hashcache.dat"))
-}
-
-func (s *Server) fsScanner(done <-chan void) {
-	if len(*share) == 0 {
-		return
-	}
-	walkMtx := sync.Mutex{}
+func (s *Server) startSetFileThreads() chan SetFileRequest {
 	rpc := make(chan SetFileRequest)
-	defer func() {
-		walkMtx.Lock()
-		close(rpc)
-		walkMtx.Unlock()
-	}()
 	for i := 0; 4 > i; i++ {
 		go func() {
 			for req := range rpc {
 				if err := s.master.SetFile(req); err != nil {
 					log.Printf("SetFile(%+v) failed: %v", req, err)
 				} else {
-					fileCacheMtx.Lock()
-					if f, ok := fileCache[req.Path]; ok {
-						delete(hashToPath[f.Hash], req.Path)
-					}
-					if req.Info == nil {
-						delete(fileCache, req.Path)
-					} else {
-						fileCache[req.Path] = *req.Info
-						if _, ok := hashToPath[req.Info.Hash]; !ok {
-							hashToPath[req.Info.Hash] = map[string]void{}
+					s.hashToPathMtx.Lock()
+					if req.Info != nil {
+						if _, ok := s.hashToPath[req.Info.Hash]; !ok {
+							s.hashToPath[req.Info.Hash] = map[string]void{}
 						}
-						hashToPath[req.Info.Hash][req.Path] = void{}
+						s.hashToPath[req.Info.Hash][req.Path] = void{}
 					}
-					fileCacheMtx.Unlock()
+					s.hashToPathMtx.Unlock()
 				}
 			}
 		}()
 	}
+	return rpc
+}
 
-	s.master.AppendReconnectCallback(func(c *RUFSMasterClient) error {
-		go func() {
-			walkMtx.Lock()
-			defer walkMtx.Unlock()
-			select {
-			case <-done:
-				return
-			default:
-			}
-			fileCacheMtx.Lock()
-			fcCopy := make(map[string]FileInfo)
-			for key, value := range fileCache {
-				fcCopy[key] = value
-			}
-			fileCacheMtx.Unlock()
-			for fn, info := range fcCopy {
-				rpc <- SetFileRequest{
-					Path: fn,
-					Info: &info,
-				}
-			}
-		}()
-		return nil
-	})
-
-	cacheSeed, err := s.readHashCache()
-	if err != nil {
-		log.Printf("Couldn't load hashcache.dat: %v", err)
+func (s *Server) SetFile(ctx context.Context, path string, info *common.FileInfo, old *common.FileInfo) {
+	if old != nil {
+		delete(s.hashToPath[old.Hash], path)
 	}
-	fastPass := (cacheSeed != nil)
-
-	// Additionally autosave the hash cache each minute
-	autosaveStop := false
-	autosavePause := fastPass
-	var autosaveMtx sync.Mutex // Lock protects autosaveStop and autosavePause
-	go func() {
-		// Returns true if goroutine should stop
-		autosaveFunc := func() bool {
-			autosaveMtx.Lock()
-			defer autosaveMtx.Unlock()
-			if autosaveStop {
-				return true
-			}
-			if autosavePause {
-				return false
-			}
-			fileCacheMtx.Lock()
-			defer fileCacheMtx.Unlock()
-			if err := s.writeHashCache(fileCache); err != nil {
-				log.Printf("Couldn't write hashcache.dat: %v", err)
-			}
-			return false
-		}
-		for range time.Tick(time.Minute) {
-			if autosaveFunc() {
-				return
-			}
-		}
-	}()
-
-	for {
-		missing := map[string]bool{}
-		walkMtx.Lock()
-		fileCacheMtx.Lock()
-		for fn := range fileCache {
-			missing[fn] = true
-		}
-		fileCacheMtx.Unlock()
-		filepath.Walk(*share, func(path string, info os.FileInfo, err error) error {
-			if err != nil {
-				return nil
-			}
-			fmt.Printf("%s (%v, %v)\n", path, info, err)
-			rel, err := filepath.Rel(*share, path)
-			if err != nil {
-				panic(err)
-			}
-			if base := filepath.Base(rel); base[0] == '.' && base != "." && base != ".." {
-				if info.IsDir() {
-					return filepath.SkipDir
-				}
-				return nil
-			}
-			if info.Mode()&os.ModeType > 0 {
-				return nil
-			}
-			fileCacheMtx.Lock()
-			if f, ok := fileCache[rel]; ok && f.Size == info.Size() && f.Mtime == info.ModTime() {
-				fileCacheMtx.Unlock()
-				delete(missing, rel)
-				return nil
-			}
-			fileCacheMtx.Unlock()
-			var hash string
-			if f, ok := cacheSeed[rel]; ok && f.Size == info.Size() && f.Mtime == info.ModTime() {
-				hash = f.Hash
-			} else {
-				if fastPass {
-					return nil
-				}
-				hash, err = HashFile(path)
-				if err != nil {
-					return nil
-				}
-			}
-			delete(missing, rel)
-			rpc <- SetFileRequest{
-				Path: rel,
-				Info: &FileInfo{
-					Hash:  hash,
-					Size:  info.Size(),
-					Mtime: info.ModTime(),
-				},
-			}
-			return nil
-		})
-		cacheSeed = nil
-		for fn := range missing {
-			rpc <- SetFileRequest{
-				Path: fn,
-				Info: nil,
-			}
-		}
-		walkMtx.Unlock()
-		if fastPass {
-			fastPass = false
-			autosaveMtx.Lock()
-			autosavePause = false
-			autosaveMtx.Unlock()
-			continue
-		}
-
-		fileCacheMtx.Lock()
-		if err := s.writeHashCache(fileCache); err != nil {
-			log.Printf("Couldn't write hashcache.dat: %v", err)
-		}
-		fileCacheMtx.Unlock()
-
-		// First pass done, kill autosaver if present
-		autosaveMtx.Lock()
-		autosaveStop = true
-		autosaveMtx.Unlock()
-
-		// Wait one minute (or exit if interrupted)
-		select {
-		case <-done:
-			return
-		case <-time.After(time.Minute):
-		}
+	s.setFileRequestChan <- SetFileRequest{
+		Path: path,
+		Info: info,
 	}
 }
 
@@ -354,7 +179,7 @@ func (RUFSService) Ping(q PingRequest, r *PingReply) (retErr error) {
 	return nil
 }
 
-func (RUFSService) Read(q ReadRequest, r *ReadReply) (retErr error) {
+func (s RUFSService) Read(q ReadRequest, r *ReadReply) (retErr error) {
 	var rc ReadReply
 	l := LogRPC("Read", q, &rc, &retErr)
 	defer func() {
@@ -362,9 +187,9 @@ func (RUFSService) Read(q ReadRequest, r *ReadReply) (retErr error) {
 		rc.Data = nil
 		l()
 	}()
-	fileCacheMtx.Lock()
-	paths, ok := hashToPath[q.Hash]
-	fileCacheMtx.Unlock()
+	s.server.hashToPathMtx.Lock()
+	paths, ok := s.server.hashToPath[q.Hash]
+	s.server.hashToPathMtx.Unlock()
 	if !ok {
 		return errors.New("ENOENT")
 	}

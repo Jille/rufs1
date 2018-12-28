@@ -1,27 +1,11 @@
 package main
 
 import (
-	"crypto/sha1"
-	"fmt"
-	"io"
 	"log"
-	"os"
 	"time"
-)
 
-func HashFile(fn string) (string, error) {
-	h := sha1.New()
-	fh, err := os.Open(fn)
-	if err != nil {
-		return "", err
-	}
-	_, err = io.Copy(h, fh)
-	fh.Close()
-	if err != nil {
-		return "", err
-	}
-	return fmt.Sprintf("%x", h.Sum(nil)), nil
-}
+	"golang.org/x/net/context"
+)
 
 func LogRPC(name string, q interface{}, r interface{}, err *error) func() {
 	start := time.Now()
@@ -42,4 +26,14 @@ func LogRPC(name string, q interface{}, r interface{}, err *error) func() {
 		close(done)
 		log.Printf("Handled RPC %s in %s: %+v -> %+v, %v", name, t, q, r, *err)
 	}
+}
+
+// Temporary function until we fully migrate to contexts.
+func createContext(done <-chan void) context.Context {
+	ctx, cancel := context.WithCancel(context.Background())
+	go func() {
+		<-done
+		cancel()
+	}()
+	return ctx
 }

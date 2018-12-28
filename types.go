@@ -4,21 +4,18 @@ import (
 	"crypto/tls"
 	"fmt"
 	"net/rpc"
-	"time"
+
+	"github.com/Jille/rufs/common"
 )
 
 type void struct{}
+
+type FileInfo = common.FileInfo
 
 type RUFSMasterService struct {
 	master *Master
 	conn   *tls.Conn
 	peer   *Peer
-}
-
-type FileInfo struct {
-	Size  int64
-	Hash  string
-	Mtime time.Time
 }
 
 type RUFSMasterClient struct {
@@ -168,7 +165,9 @@ func (c *RUFSMasterClient) GetOwners(hash string) (ret *GetOwnersReply, err erro
 	return ret, err
 }
 
-type RUFSService struct{}
+type RUFSService struct {
+	server *Server
+}
 
 type RUFSClient struct {
 	addr   string
