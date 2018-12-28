@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"crypto/sha256"
 	"crypto/subtle"
+	"flag"
 
 	"crypto/rsa"
 	"crypto/tls"
@@ -26,7 +27,9 @@ const (
 	AUTH_TOKEN_TAG = 0x01
 )
 
-var AUTH_TOKEN_EXPIRY = 24 * time.Hour
+var (
+	authTokenExpiryDays = flag.Int("auth_token_expiry_days", 7, "Number of days auth tokens are valid for, when creating new auth tokens")
+)
 
 type MasterVault struct {
 	ca   *x509.Certificate
@@ -154,7 +157,7 @@ func signClient(mv *MasterVault, pub []byte, name string) ([]byte, error) {
 }
 
 func createAuthToken(mv *MasterVault, user string) string {
-	expires := time.Now().Add(AUTH_TOKEN_EXPIRY)
+	expires := time.Now().Add(time.Duration(*authTokenExpiryDays) * 24 * time.Hour)
 	token := AuthToken{
 		User:    user,
 		Expires: expires,
