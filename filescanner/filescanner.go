@@ -230,7 +230,6 @@ func scanFilesystem(baseDir string, callback func(path string, info os.FileInfo)
 		if err != nil {
 			return nil
 		}
-		fmt.Printf("%s (%v, %v)\n", path, info, err)
 		rel, err := filepath.Rel(baseDir, path)
 		if err != nil {
 			panic(err)
