@@ -26,11 +26,12 @@ var (
 )
 
 type Master struct {
-	port  int
-	dir   string
-	sock  net.Listener
-	vault *MasterVault
-	db    *Database
+	port   int
+	dir    string
+	sock   *net.TCPListener
+	tlsCfg *tls.Config
+	vault  *MasterVault
+	db     *Database
 }
 
 func newMaster(port int) (*Master, error) {
@@ -62,9 +63,13 @@ func (m *Master) Setup() error {
 		os.Exit(0)
 	}
 
-	tlsCfg := getTlsConfig(TlsConfigMaster, m.vault.ca, m.vault.getTlsCert(), "rufs-master")
+	m.tlsCfg = getTlsConfig(TlsConfigMaster, m.vault.ca, m.vault.getTlsCert(), "rufs-master")
 
-	sock, err := tls.Listen("tcp", fmt.Sprintf(":%d", m.port), tlsCfg)
+	addr, err := net.ResolveTCPAddr("tcp", fmt.Sprintf(":%d", m.port))
+	if err != nil {
+		return err
+	}
+	sock, err := net.ListenTCP("tcp", addr)
 	if err != nil {
 		return err
 	}
@@ -78,11 +83,14 @@ func (m *Master) Run(ctx context.Context) error {
 		m.sock.Close()
 	}()
 	for {
-		conn, err := m.sock.Accept()
+		conn, err := m.sock.AcceptTCP()
 		if err != nil {
 			break
 		}
-		tlsConn := conn.(*tls.Conn)
+		if err := conn.SetKeepAlive(true); err != nil {
+			log.Printf("Failed to enable keepalive on %v: %v", conn, err)
+		}
+		tlsConn := tls.Server(conn, m.tlsCfg)
 		peer := &Peer{}
 		s := rpc.NewServer()
 		s.Register(RUFSMasterService{m, tlsConn, peer})
