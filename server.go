@@ -118,14 +118,13 @@ func (s *Server) Setup() error {
 	return nil
 }
 
-func (s *Server) Run(done <-chan void) error {
+func (s *Server) Run(ctx context.Context) error {
 	defer s.master.Close()
 	defer s.sock.Close()
 
 	if len(*share) >= 0 {
 		s.setFileRequestChan = s.startSetFileThreads()
 		defer close(s.setFileRequestChan)
-		ctx := createContext(done)
 		mc := filescanner.New(*share, getPath(*varStorage))
 		ectx, cancel := context.WithCancel(ctx)
 		mc.ContinuousExport(ectx, s.SetFile)
@@ -137,7 +136,7 @@ func (s *Server) Run(done <-chan void) error {
 		})
 		go mc.Run(ctx)
 	}
-	<-done
+	<-ctx.Done()
 	return nil
 }
 

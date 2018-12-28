@@ -53,15 +53,6 @@ func GetFetcher(server *Server) (*Fetcher, error) {
 	return f, nil
 }
 
-func (f *Fetcher) Setup() error {
-	return nil
-}
-
-func (f *Fetcher) Run(done <-chan void) error {
-	<-done
-	return nil
-}
-
 type pfPeer struct {
 	ident   string
 	client  *RUFSClient

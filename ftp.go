@@ -13,6 +13,7 @@ import (
 	"time"
 
 	ftpserver "github.com/goftp/server"
+	"golang.org/x/net/context"
 )
 
 var (
@@ -68,12 +69,12 @@ func (f *FTPd) Setup() (retErr error) {
 	return nil
 }
 
-func (f *FTPd) Run(done <-chan void) (retErr error) {
+func (f *FTPd) Run(ctx context.Context) (retErr error) {
 	go func() {
-		<-done
+		<-ctx.Done()
 		f.ftp.Shutdown()
 	}()
-	go f.cachePurger(done)
+	go f.cachePurger(ctx)
 	return f.ftp.ListenAndServe()
 }
 

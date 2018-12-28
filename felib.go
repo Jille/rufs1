@@ -8,6 +8,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"golang.org/x/net/context"
 )
 
 type FrontendLib struct {
@@ -19,12 +21,12 @@ type FrontendLib struct {
 	cacheMtx    sync.Mutex
 }
 
-func (f *FrontendLib) cachePurger(done <-chan void) {
+func (f *FrontendLib) cachePurger(ctx context.Context) {
 	t := time.NewTicker(10 * time.Second)
 	defer t.Stop()
 	for {
 		select {
-		case <-done:
+		case <-ctx.Done():
 			return
 		case <-t.C:
 		}
