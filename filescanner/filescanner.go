@@ -65,7 +65,7 @@ func (m *Scanner) readHashCache() (map[string]common.FileInfo, error) {
 }
 
 func (m *Scanner) writeHashCache(c map[string]common.FileInfo) error {
-	fh, err := os.Create(m.cacheFileName()+".new")
+	fh, err := os.Create(m.cacheFileName() + ".new")
 	if err != nil {
 		return err
 	}
