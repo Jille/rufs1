@@ -71,7 +71,6 @@
     "github.com/dustin/go-humanize",
     "github.com/goftp/server",
     "github.com/mattn/go-sqlite3",
-    "golang.org/x/net/context",
   ]
   solver-name = "gps-cdcl"
   solver-version = 1

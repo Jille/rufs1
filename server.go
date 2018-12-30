@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"crypto/tls"
 	"crypto/x509"
 	"errors"
@@ -19,7 +20,6 @@ import (
 
 	"github.com/Jille/rufs/common"
 	"github.com/Jille/rufs/filescanner"
-	"golang.org/x/net/context"
 )
 
 var (

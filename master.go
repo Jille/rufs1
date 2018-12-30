@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"crypto/tls"
 	"errors"
 	"flag"
@@ -10,8 +11,6 @@ import (
 	"net/rpc"
 	"os"
 	"strings"
-
-	"golang.org/x/net/context"
 )
 
 type Peer struct {

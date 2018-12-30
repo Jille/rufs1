@@ -2,6 +2,7 @@ package filescanner
 
 import (
 	"compress/gzip"
+	"context"
 	"encoding/gob"
 	"fmt"
 	"log"
@@ -12,7 +13,6 @@ import (
 	"time"
 
 	"github.com/Jille/rufs/common"
-	"golang.org/x/net/context"
 )
 
 type ExportCallback func(ctx context.Context, path string, info *common.FileInfo, oldInfo *common.FileInfo)

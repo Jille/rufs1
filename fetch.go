@@ -3,6 +3,7 @@
 package main
 
 import (
+	"context"
 	"errors"
 	"flag"
 	"io"
@@ -12,7 +13,6 @@ import (
 	"time"
 
 	humanize "github.com/dustin/go-humanize"
-	"golang.org/x/net/context"
 )
 
 var (
