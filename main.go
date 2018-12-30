@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"errors"
 	"flag"
 	"log"
@@ -10,8 +11,6 @@ import (
 	"path/filepath"
 	"strings"
 	"syscall"
-
-	"golang.org/x/net/context"
 )
 
 func init() {

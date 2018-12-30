@@ -3,6 +3,7 @@
 package main
 
 import (
+	"context"
 	"errors"
 	"flag"
 	"io"
@@ -13,7 +14,6 @@ import (
 	"time"
 
 	ftpserver "github.com/goftp/server"
-	"golang.org/x/net/context"
 )
 
 var (

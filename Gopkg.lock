@@ -67,13 +67,10 @@
   input-imports = [
     "bazil.org/fuse",
     "bazil.org/fuse/fs",
-    "github.com/Jille/rufs/common",
-    "github.com/Jille/rufs/filescanner",
     "github.com/boltdb/bolt",
     "github.com/dustin/go-humanize",
     "github.com/goftp/server",
     "github.com/mattn/go-sqlite3",
-    "golang.org/x/net/context",
   ]
   solver-name = "gps-cdcl"
   solver-version = 1

@@ -3,13 +3,12 @@
 package main
 
 import (
+	"context"
 	"errors"
 	"path/filepath"
 	"strings"
 	"sync"
 	"time"
-
-	"golang.org/x/net/context"
 )
 
 type FrontendLib struct {
