@@ -3,6 +3,8 @@ package main
 import (
 	"crypto/tls"
 	"fmt"
+	"log"
+	"net"
 	"net/rpc"
 
 	"github.com/Jille/rufs/common"
@@ -27,12 +29,24 @@ type RUFSMasterClient struct {
 }
 
 func NewRUFSMasterClient(addr string, tlsCfg *tls.Config) (*RUFSMasterClient, error) {
-	conn, err := tls.Dial("tcp", addr, tlsCfg)
+	taddr, err := net.ResolveTCPAddr("tcp", addr)
 	if err != nil {
-		return &RUFSMasterClient{}, err
+		return nil, err
 	}
-	client := rpc.NewClient(conn)
-	return &RUFSMasterClient{addr, tlsCfg, client, conn, func(c *RUFSMasterClient) error { return nil }}, nil
+	conn, err := net.DialTCP("tcp", nil, taddr)
+	if err != nil {
+		return nil, err
+	}
+	if err := conn.SetKeepAlive(true); err != nil {
+		log.Printf("Failed to enable keepalive on %v: %v", conn, err)
+	}
+	tlsConn := tls.Client(conn, tlsCfg)
+	if err := tlsConn.Handshake(); err != nil {
+		conn.Close()
+		return nil, err
+	}
+	client := rpc.NewClient(tlsConn)
+	return &RUFSMasterClient{addr, tlsCfg, client, tlsConn, func(c *RUFSMasterClient) error { return nil }}, nil
 }
 
 func (c *RUFSMasterClient) Close() error {
