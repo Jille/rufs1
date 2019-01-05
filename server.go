@@ -11,6 +11,7 @@ import (
 	"io/ioutil"
 	"log"
 	"net"
+	"net/http"
 	"net/rpc"
 	"os"
 	"path"
@@ -25,6 +26,7 @@ import (
 var (
 	port          = flag.Int("port", 1667, "Flag to run the server at")
 	extIp         = flag.String("external_ip", "", "Your external IP (if not detected automatically)")
+	autoIp        = flag.Bool("auto_ip", false, "Automatically determine public/external IP")
 	share         = flag.String("share", "", "Share this folder")
 	user          = flag.String("user", "quis", "Who are you?")
 	registerToken = flag.String("register_token", "", "Register with the master and get certificates")
@@ -122,7 +124,16 @@ func (s *Server) Setup() error {
 	go srv.Accept(s.sock)
 
 	var addr string
-	if *share != "" || *extIp != "" {
+	if *share != "" || *extIp != "" || *autoIp {
+		if *autoIp {
+			ip, err := determineIP()
+			if err != nil {
+				log.Printf("Automatic IP detection failed: %v", err)
+			} else {
+				log.Printf("Automatically determined external IP to be %s", ip)
+				*extIp = ip
+			}
+		}
 		addr = fmt.Sprintf("%s:%d", *extIp, *port)
 	}
 	signin := func(c *RUFSMasterClient) error {
@@ -273,4 +284,17 @@ func (s *Server) getCertificates() error {
 	log.Println("You're good to go!")
 	os.Exit(0)
 	return nil
+}
+
+func determineIP() (string, error) {
+	res, err := http.Get("https://api.ipify.org")
+	if err != nil {
+		return "", err
+	}
+	defer res.Body.Close()
+	ip, err := ioutil.ReadAll(res.Body)
+	if err != nil {
+		return "", err
+	}
+	return string(ip), nil
 }
