@@ -25,7 +25,7 @@ import (
 var (
 	port          = flag.Int("port", 1667, "Flag to run the server at")
 	extIp         = flag.String("external_ip", "", "Your external IP (if not detected automatically)")
-	autoIp        = flag.Bool("auto_ip", false, "Automatically determe public/external IP")
+	autoIp        = flag.Bool("auto_ip", false, "Automatically determine public/external IP")
 	share         = flag.String("share", "", "Share this folder")
 	user          = flag.String("user", "quis", "Who are you?")
 	registerToken = flag.String("register_token", "", "Register with the master and get certificates")
