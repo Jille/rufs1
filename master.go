@@ -85,6 +85,7 @@ func (m *Master) Run(ctx context.Context) error {
 	for {
 		conn, err := m.sock.AcceptTCP()
 		if err != nil {
+			log.Printf("Accept failed: %v", err)
 			break
 		}
 		if err := conn.SetKeepAlive(true); err != nil {
