@@ -1,12 +1,18 @@
 package main
 
 import (
+	"crypto/hmac"
 	"crypto/rand"
+	"crypto/sha256"
+	"crypto/subtle"
+	"flag"
+
 	"crypto/rsa"
-	"crypto/sha1"
 	"crypto/tls"
 	"crypto/x509"
 	"crypto/x509/pkix"
+	"encoding/asn1"
+	"encoding/base64"
 	"encoding/pem"
 	"fmt"
 	"io/ioutil"
@@ -16,9 +22,23 @@ import (
 	"time"
 )
 
+// Domain separation tags
+const (
+	AUTH_TOKEN_TAG = 0x01
+)
+
+var (
+	authTokenExpiryDays = flag.Int("auth_token_expiry_days", 7, "Number of days auth tokens are valid for, when creating new auth tokens")
+)
+
 type MasterVault struct {
 	ca   *x509.Certificate
 	priv *rsa.PrivateKey
+}
+
+type AuthToken struct {
+	User    string
+	Expires time.Time `asn1:"utc"`
 }
 
 func (mv *MasterVault) getTlsCert() *tls.Certificate {
@@ -137,11 +157,53 @@ func signClient(mv *MasterVault, pub []byte, name string) ([]byte, error) {
 }
 
 func createAuthToken(mv *MasterVault, user string) string {
-	h := sha1.New()
-	h.Write([]byte(user))
-	h.Write([]byte{0})
-	h.Write(x509.MarshalPKCS1PrivateKey(mv.priv))
-	return fmt.Sprintf("%x", h.Sum(nil))
+	expires := time.Now().Add(time.Duration(*authTokenExpiryDays) * 24 * time.Hour)
+	token := AuthToken{
+		User:    user,
+		Expires: expires,
+	}
+	payload, err := asn1.Marshal(token)
+	if err != nil {
+		panic("Unexpected error while Marshal'ing AuthToken")
+	}
+	key := x509.MarshalPKCS1PrivateKey(mv.priv)
+	h := hmac.New(sha256.New, key)
+	h.Write([]byte{AUTH_TOKEN_TAG})
+	h.Write(payload)
+	signed := append(payload, h.Sum(nil)...)
+	return base64.StdEncoding.EncodeToString(signed)
+}
+
+func verifyAuthToken(mv *MasterVault, b64_token string, user string) bool {
+	signed, err := base64.StdEncoding.DecodeString(b64_token)
+	if err != nil {
+		return false
+	}
+	payload := signed[:len(signed)-32]
+	mac := signed[len(signed)-32:]
+	key := x509.MarshalPKCS1PrivateKey(mv.priv)
+	h := hmac.New(sha256.New, key)
+	h.Write([]byte{AUTH_TOKEN_TAG})
+	h.Write(payload)
+	if subtle.ConstantTimeCompare(mac, h.Sum(nil)) == 0 {
+		// Fail if the MAC is incorrect
+		return false
+	}
+	token := AuthToken{}
+	if rest, err := asn1.Unmarshal(payload, &token); err != nil || len(rest) != 0 {
+		// Fail if the token does not parse
+		return false
+	}
+	if subtle.ConstantTimeCompare([]byte(user), []byte(token.User)) == 0 {
+		// Fail if the token is for another user
+		return false
+	}
+	now := time.Now()
+	if now.After(token.Expires) {
+		// Fail if the token has expired
+		return false
+	}
+	return true
 }
 
 func pemToFile(fn, pemType string, data []byte, mode os.FileMode) error {

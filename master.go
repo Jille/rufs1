@@ -99,8 +99,8 @@ func (m *Master) Run(ctx context.Context) error {
 
 func (s RUFSMasterService) Register(q RegisterRequest, r *RegisterReply) (retErr error) {
 	defer LogRPC("Register", q, r, &retErr)()
-	token := createAuthToken(s.master.vault, q.User)
-	if token != q.Token {
+	verify := verifyAuthToken(s.master.vault, q.Token, q.User)
+	if !verify {
 		return errors.New("Token is invalid")
 	}
 
